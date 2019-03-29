@@ -22,7 +22,29 @@ int Dev_Inter::SolveProblem()
 
 float Dev_Inter::Cal_Curvature(const Surface_mesh::Vertex& v)
 {
+	assert(!cur_mesh_.is_boundary(v));
 
+	float sum_theta = 0.0f;
+	float area = 0.0f;
+	float K = 0.0f;
+	//calculate summarize of internal angles and Voronoi area
+	for (auto it_v1 = cur_mesh_.vertices(v).begin(); it_v1 != cur_mesh_.vertices(v).end();)
+	{
+		auto it_v2 = it_v1;
+		++it_v1;
+		//2 adjacent vectors 
+		auto e1 = (cur_mesh_.position(*it_v1) - cur_mesh_.position(v));
+		auto e2 = (cur_mesh_.position(*it_v2) - cur_mesh_.position(v));
+		//calculate theta 
+		float theta = acos(dot(e1, e2) / (norm(e1) * norm(e2)));
+		//accumulate
+		sum_theta += theta;
+		area += norm(e1) * norm(e2) * sin(theta);
+	}
+	area /= 3;
+
+	//calculate Gaussion curvature
+	return K = (2 * M_PI - sum_theta) / area;
 }
 
 float Dev_Inter::Cal_EInter(const Surface_mesh::Vertex& v)
@@ -39,20 +61,3 @@ int Dev_Inter::Cal_Weights(Surface_mesh X0, double errD, double errL, double err
 {
 
 }
-
-float Dev_Inter::Cal_Theta(const Surface_mesh::Vertex& v)
-{
-	float theta = 0.0;
-	for (auto ve = cur_mesh_.vertices(v).begin(); ve != cur_mesh_.vertices(v).end();)
-	{
-		auto vf = ve;
-		++ve;
-		auto l = (cur_mesh_.position(*ve) - cur_mesh_.position(v)) * (cur_mesh_.position(*vf) - cur_mesh_.position(v));
-		float s = 0.0;
-		for (int i = 0; i < 3; ++i)
-			s += l[i];
-		dot()
-		theta += acos(s / (cur_mesh_.edge_length(cur_mesh_.edge(vf.halfedge())) * cur_mesh_.edge_length(cur_mesh_.edge(ve.halfedge()))));
-	}
-}
-

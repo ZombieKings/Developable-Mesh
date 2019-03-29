@@ -1,4 +1,6 @@
 #include <iostream>
+
+#define _USE_MATH_DEFINES
 #include <math.h>
 
 #include <surface_mesh/Surface_mesh.h>
@@ -69,8 +71,5 @@ private:
 	//Dynamically Update Weights in Processing
 	int Cal_Weights(Surface_mesh X0, double errD, double errL, double errI, const Surface_mesh& X0r, double errDr, double errLr, double errIr);
 
-private:
-	//Calculate sumarize of all incident internal angles of v
-	float Cal_Theta(const Surface_mesh::Vertex& v);
 };
 
