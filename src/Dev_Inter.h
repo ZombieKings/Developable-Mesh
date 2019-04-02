@@ -13,12 +13,14 @@
 using namespace surface_mesh;
 //=============================================================================
 
+typedef Eigen::Triplet<float> Tri;
+
 class Dev_Inter
 {
 public:
 
 	//Constructor
-	Dev_Inter(Surface_mesh input_mesh, Surface_mesh input_anchor) :ori_mesh_(input_mesh), anchor_p_(input_anchor) {};
+	Dev_Inter(Surface_mesh input_mesh, std::vector<Point> input_anchor, std::vector<unsigned int> input_anchor_idx);
 	//Deconstructor
 	~Dev_Inter() {};
 
@@ -28,10 +30,11 @@ private:
 	Surface_mesh ori_mesh_;
 
 	//Anchor points
-	Surface_mesh anchor_p_;
+	std::vector<Point> anchor_position_;
+	std::vector<unsigned int> anchor_idx_;
 
 	//Internal Vertex index
-	Eigen::VectorXd inter_p_;
+	std::vector<int> inter_p_;
 
 	//Current mesh
 	Surface_mesh cur_mesh_;
@@ -50,7 +53,14 @@ private:
 
 	Eigen::VectorXf right_b_;
 
+	//------Condition Datas--------
 	unsigned int w1_, w2_;
+
+	//Errors of developable,length preservation and interpolation, respectively
+	double ED_, EL_, EI_;
+
+	//Errors of previous iteration 
+	double preED_, preEL_, preEI_;
 private:
 	//Build the coefficient matrix of linear system
 	int BuildMetrix();
@@ -59,17 +69,33 @@ private:
 	int SolveProblem();
 
 private:
-	//Calculate Gaussian Curvature at vertex v
-	float Cal_Curvature(const Surface_mesh::Vertex& v);
+	//Collect all edge length and save in a upper triangular matrix
+	Eigen::SparseMatrix<float> Col_Length(const Surface_mesh& input_mesh) const;
 
-	//Calculate Developable Error of v
-	float Cal_EInter(const Surface_mesh::Vertex& v);
+	//Calculate Gaussian curvature constraint at vertex v
+	int Cal_CurvatureCoeff(const Surface_mesh::Vertex& v, size_t num);
 
-	//Calculate Length Error of v
-	float Cal_Elength(const Surface_mesh::Edge& v);
+	//Calculate length preservation of e
+	float Cal_LengthCoeff(const Surface_mesh::Edge& e, size_t num);
 
-	//Dynamically Update Weights in Processing
-	int Cal_Weights(Surface_mesh X0, double errD, double errL, double errI, const Surface_mesh& X0r, double errDr, double errLr, double errIr);
+	//Calculate interpolation error of v
+	float Cal_InterCoeff(size_t idx, size_t num);
 
+	//Dynamically update weights in processing
+	int Adjust_Weights();
+private:
+	//---------Temporary Data------------
+	std::vector<Tri> tri_Coeff_;
+
+	std::vector<float> temp_Area_;
+
+	Eigen::SparseMatrix<float> temp_ori_length_;
 };
 
+//将得到的系数向量导入系数矩阵中
+inline bool vec2mat(std::vector<Eigen::Triplet<float>>& target_matrix, const Vec3& input_vector, size_t row_, size_t col_)
+{
+	for (size_t i = 0; i < 3; ++i)
+		target_matrix.push_back(Eigen::Triplet <float>(row_, col_ * 3 + i, input_vector[i]));
+	return true;
+}
