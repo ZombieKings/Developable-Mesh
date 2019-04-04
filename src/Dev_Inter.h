@@ -39,6 +39,9 @@ private:
 	//Current mesh
 	Surface_mesh cur_mesh_;
 
+	//Previous mesh
+	Surface_mesh pre_mesh_;
+
 public:
 
 	//Deformation
@@ -47,20 +50,30 @@ public:
 	//Get deformation result
 	const Surface_mesh& Get_Result() const;
 
+	//Set all conditions
+	int SetConditions(const float& D, const float& I, const float& L, const float& dD, const float& dI, const float& duL, const float& ddL);
+
 private:
 	//------Equation Datas------
 	Eigen::SparseMatrix<float> coeff_A_;
 
 	Eigen::VectorXf right_b_;
 
+	Eigen::VectorXf scale_s_;
+
 	//------Condition Datas--------
-	unsigned int w1_, w2_;
+	//Terminal conditions
+	float epD_ = 0, epL_ = 0, epI_ = 0;
+	float deD_ = 0, udeL_ = 0, ddeL_ = 0, deI_ = 0;
+
+	//Weights of different errors
+	float w1_ = 5000, w2_ = 5000;
 
 	//Errors of developable,length preservation and interpolation, respectively
-	double ED_, EL_, EI_;
+	double ED_ = 0, EL_ = 0, EI_ = 0;
 
 	//Errors of previous iteration 
-	double preED_, preEL_, preEI_;
+	double preED_ = 0, preEL_ = 0, preEI_ = 0;
 private:
 	//Build the coefficient matrix of linear system
 	int BuildMetrix();
@@ -81,8 +94,14 @@ private:
 	//Calculate interpolation error of v
 	float Cal_InterCoeff(size_t idx, size_t num);
 
+	//Calculate error of current deformation
+	void Cal_Error();
+
 	//Dynamically update weights in processing
 	int Adjust_Weights();
+
+	//Use S update mesh
+	int Update_Mesh();
 private:
 	//---------Temporary Data------------
 	std::vector<Tri> tri_Coeff_;
