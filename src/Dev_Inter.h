@@ -8,6 +8,13 @@
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
 #include <Eigen/SparseCholesky>
+#include <Eigen/Eigenvalues>
+#include <Eigen/SparseLU>
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/core/eigen.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 
 //=============================================================================
 using namespace surface_mesh;
@@ -67,12 +74,12 @@ private:
 	float deD_ = 0, udeL_ = 0, ddeL_ = 0, deI_ = 0;
 
 	//Weights of different errors
-	float w1_ = 5000, w2_ = 5000;
+	float w1_ = 1, w2_ = 1;
 
 	//Errors of developable,length preservation and interpolation, respectively
 	double ED_ = 0, EL_ = 0, EI_ = 0;
 
-	//Errors of previous iteration 
+	//Errors of previous iteration
 	double preED_ = 0, preEL_ = 0, preEI_ = 0;
 private:
 	//Build the coefficient matrix of linear system
@@ -80,6 +87,9 @@ private:
 
 	//Solve the linear system
 	int SolveProblem();
+
+	//creat a mesh with mesh_size height and weight
+	Surface_mesh CreatMesh(size_t mesh_size);
 
 private:
 	//Collect all edge length and save in a upper triangular matrix
@@ -102,6 +112,12 @@ private:
 
 	//Use S update mesh
 	int Update_Mesh();
+
+	void Matrix_Visualization(const Eigen::MatrixXf& iMatrix, double first, double second);
+
+	int Matrix_Rank(const Eigen::MatrixXf& iMatrix);
+
+	bool my_LLT(const Eigen::SparseMatrix<float>& in_Mat, Eigen::MatrixXf& Result);
 private:
 	//---------Temporary Data------------
 	std::vector<Tri> tri_Coeff_;
@@ -115,6 +131,8 @@ private:
 inline bool vec2mat(std::vector<Eigen::Triplet<float>>& target_matrix, const Vec3& input_vector, size_t row_, size_t col_)
 {
 	for (size_t i = 0; i < 3; ++i)
-		target_matrix.push_back(Eigen::Triplet <float>(row_, col_ * 3 + i, input_vector[i]));
+		if (input_vector[i])
+			target_matrix.push_back(Eigen::Triplet <float>(row_, col_ * 3 + i, input_vector[i]));
+
 	return true;
 }

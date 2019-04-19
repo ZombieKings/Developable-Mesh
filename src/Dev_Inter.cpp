@@ -7,8 +7,9 @@ Dev_Inter::Dev_Inter(Surface_mesh input_mesh, std::vector<Point> input_anchor, s
 		if (!ori_mesh_.is_boundary(vit))
 			inter_p_.push_back(vit.idx());
 	cur_mesh_ = ori_mesh_;
+	temp_Area_.resize(inter_p_.size());
 
-	//Adapt the coefficient matrix based on the input datas 
+	//Adapt the coefficient matrix based on the input datas
 	coeff_A_.resize(inter_p_.size() + input_mesh.n_edges() + input_anchor.size() * 3, input_mesh.n_vertices() * 3);
 	coeff_A_.reserve(inter_p_.size() * 3 * 18 + input_mesh.n_edges() * 3 * 2 + input_anchor.size() * 3 * 3);
 	right_b_.resize(inter_p_.size() + input_mesh.n_edges() + input_anchor.size() * 3);
@@ -22,18 +23,34 @@ int Dev_Inter::Deformation()
 	while (EI_ >= epI_ || EL_ >= epL_ || ED_ >= epD_ || it_count >= 50)
 	{
 		//Determine weights w1, w2
-		Adjust_Weights();
+		if (!Adjust_Weights())
+		{
+			std::cout << "Faild to adjust weights" << std::endl;
+			return 0;
+		}
 
 		//Construct linear system
-		BuildMetrix();
+		if (!BuildMetrix())
+		{
+			std::cout << "Faild to build coefficient matrix" << std::endl;
+			return 0;
+		}
 
 		//Using Cholesky factorization to solve the linear system
-		SolveProblem();
+		if (!SolveProblem())
+		{
+			std::cout << "Faild to solve system" << std::endl;
+			return 0;
+		}
 
 		//Update the mesh with result scale S
-		Update_Mesh();
+		if (!Update_Mesh())
+		{
+			std::cout << "Faild to update mesh" << std::endl;
+			return 0;
+		}
 
-		//Calculate three errors 
+		//Calculate three errors
 		preEI_ = EI_;
 		preED_ = ED_;
 		preEL_ = EL_;
@@ -96,10 +113,25 @@ int Dev_Inter::SolveProblem()
 	Eigen::SparseMatrix<float> tempAT = coeff_A_.transpose();
 	Eigen::VectorXf tempB = tempAT * right_b_;
 	Eigen::SparseMatrix<float> tempA = tempAT * coeff_A_;
+	//int rank = Matrix_Rank(coeff_A_);
+	//if (rank != coeff_A_.cols())
+	//{
+	//	std::cout << rank << std::endl;
+	//	return 0;
+	//}
+	
+	//Eigen::MatrixXf R ;
+	//if (!my_LLT(tempA, R))
+	//{
+	//	return 0;
+	//}
+	Matrix_Visualization(coeff_A_, inter_p_.size(), inter_p_.size() + cur_mesh_.n_edges());
+	//Matrix_Visualization(Tempgs, 0, 0);
 
 	solver.compute(tempA);
 	if (solver.info() != Eigen::Success)
 	{
+		std::cout << solver.info() << std::endl;
 		return 0;
 	}
 
@@ -108,9 +140,42 @@ int Dev_Inter::SolveProblem()
 	std::cout << scale_s_ << std::endl;
 	if (solver.info() != Eigen::Success)
 	{
+		std::cout << solver.info() << std::endl;
 		return 0;
 	}
 	return 1;
+}
+
+surface_mesh::Surface_mesh Dev_Inter::CreatMesh(size_t mesh_size)
+{
+	Surface_mesh mesh;
+	for (int i = 0; i < mesh_size; ++i)
+	{
+		for (int j = 0; j < mesh_size; ++j)
+		{
+			mesh.add_vertex(Point(2 * i, 2 * j, 0));
+		}
+		if (i != (mesh_size - 1))
+		{
+			for (int j = 0; j < mesh_size - 1; ++j)
+			{
+				mesh.add_vertex(Point(2 * i + 1, 2 * j + 1, 0));
+			}
+		}
+	}
+
+	for (int i = 0; i < mesh_size - 1; ++i)
+	{
+		for (int j = 0; j < mesh_size - 1; ++j)
+		{
+			mesh.add_triangle(Surface_mesh::Vertex(j + i * (2 * mesh_size - 1)), Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + 1), Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + mesh_size));
+			mesh.add_triangle(Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + 1), Surface_mesh::Vertex(j + (i + 1) * (2 * mesh_size - 1) + 1), Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + mesh_size));
+			mesh.add_triangle(Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + mesh_size), Surface_mesh::Vertex(j + (i + 1) * (2 * mesh_size - 1) + 1), Surface_mesh::Vertex(j + (i + 1) * (2 * mesh_size - 1)));
+			mesh.add_triangle(Surface_mesh::Vertex(j + i * (2 * mesh_size - 1)), Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + mesh_size), Surface_mesh::Vertex(j + (i + 1) * (2 * mesh_size - 1)));
+		}
+	}
+
+	return mesh;
 }
 
 int Dev_Inter::SetConditions(const float& D, const float& I, const float& L, const float& dD, const float& dI, const float& duL, const float& ddL)
@@ -162,9 +227,9 @@ int Dev_Inter::Cal_CurvatureCoeff(const Surface_mesh::Vertex& v, size_t num)
 	++nex_q;
 	while (q != cur_mesh_.vertices(p).end())
 	{
-		//要使用到的向量 
+		//要使用到的向量
 		auto vpq = (cur_mesh_.position(*q) - cur_mesh_.position(p));
-		auto vqp = -vpq;
+		auto vqp = (cur_mesh_.position(p) - cur_mesh_.position(*q));
 		auto vpqn = (cur_mesh_.position(*nex_q) - cur_mesh_.position(p));
 		auto vqqn = (cur_mesh_.position(*nex_q) - cur_mesh_.position(*q));
 		auto vqqp = (cur_mesh_.position(*pre_q) - cur_mesh_.position(*q));
@@ -191,36 +256,37 @@ int Dev_Inter::Cal_CurvatureCoeff(const Surface_mesh::Vertex& v, size_t num)
 		//累加当前顶点
 		sum_theta += theta;
 		area += (cro_pqqn / 2);
-		coeff_vp += (((cot_l + cot_r) / norm(vpq)) * (vpq));
+		coeff_vp += (((cot_l + cot_r) / sqrnorm(vpq)) * (vpq));
 
 		//计算下一个相邻顶点
-		pre_q = q;
-		q = nex_q;
+		++pre_q;
+		++q;
 		++nex_q;
 	}
-	temp_Area_.push_back(area / 3);
+	temp_Area_.push_back(w1_ * area / 3);
 
 	//当前顶点系数
 	coeff_vp = coeff_vp * cur_mesh_.position(p);
 	vec2mat(tri_Coeff_, w1_ * coeff_vp, num, p.idx());
 
 	//计算等式右侧的系数
-	right_b_(num) = w1_ * (2 * M_PI - sum_theta) / (area / 3);
+	right_b_(num) = - w1_ * (2 * M_PI - sum_theta) / (area / 3);
 	return 1;
 }
 
 float Dev_Inter::Cal_LengthCoeff(const Surface_mesh::Edge& e, size_t num)
 {
-	auto vertex_head = cur_mesh_.vertex(e, 1);
-	auto vertex_tail = cur_mesh_.vertex(e, 0);
+	auto vertex_head = cur_mesh_.vertex(e, 0);
+	auto vertex_tail = cur_mesh_.vertex(e, 1);
 	auto position_h = cur_mesh_.position(vertex_head);
 	auto position_t = cur_mesh_.position(vertex_tail);
 
 	auto vec = position_t - position_h;
 
 	vec2mat(tri_Coeff_, w2_ * position_t / norm(vec), num, vertex_tail.idx());
-	vec2mat(tri_Coeff_, -w2_ * position_h / norm(vec), num, vertex_head.idx());
-	right_b_(num) = 0;
+	vec2mat(tri_Coeff_, - w2_ * position_h / norm(vec), num, vertex_head.idx());
+
+	right_b_(num) = - w2_ * (cur_mesh_.edge_length(e) - ori_mesh_.edge_length(e));
 	return 1;
 }
 
@@ -230,7 +296,7 @@ float Dev_Inter::Cal_InterCoeff(size_t idx, size_t num)
 	surface_mesh::Vec3f temp_lambda = cur_mesh_.position(temp_v) - anchor_position_[idx];
 	for (size_t i = 0; i < 3; ++i)
 	{
-		//left hand 
+		//left hand
 		tri_Coeff_.push_back(Eigen::Triplet <float>(num + i, temp_v.idx() * 3 + i, cur_mesh_.position(temp_v)[i]));
 		//right hand
 		right_b_(num + i) = -temp_lambda[i];
@@ -252,7 +318,7 @@ void Dev_Inter::Cal_Error()
 		++nex_q;
 		while (q != cur_mesh_.vertices(p).end())
 		{
-			//necessary vectors 
+			//necessary vectors
 			auto vpq = (cur_mesh_.position(*q) - cur_mesh_.position(p));
 			auto vpqn = (cur_mesh_.position(*nex_q) - cur_mesh_.position(p));
 
@@ -264,7 +330,7 @@ void Dev_Inter::Cal_Error()
 			++nex_q;
 		}
 		area /= 3;
-		ED_ += (2 * M_PI - sum_theta) / area;
+		ED_ += ((2 * M_PI - sum_theta) / area)*((2 * M_PI - sum_theta) / area);
 	}
 
 	//For every edges calculate length errors
@@ -321,3 +387,93 @@ int Dev_Inter::Update_Mesh()
 	return 1;
 }
 
+void Dev_Inter::Matrix_Visualization(const Eigen::MatrixXf& iMatrix, double first, double second)
+{
+	cv::Mat Image = cv::Mat::zeros(1000, 1000, CV_8UC3);
+	double W = 1000.0f / iMatrix.cols();
+	double H = 1000.0f / iMatrix.rows();
+	for (double i = 0; i < iMatrix.cols(); ++i)
+		for (double j = 0; j < iMatrix.rows(); ++j)
+			if (iMatrix(j, i) > 0)
+			{
+				cv::Point2d p1(i * W, j * H);
+				cv::Point2d p2((i + 1) * W, (j + 1) * H);
+				cv::rectangle(Image, p1, p2, cv::Scalar{ 0 , 0 , 255 }, cv::FILLED);
+				//cv::rectangle(Image, p1, p2, cv::Scalar{ 255 , 255 , 255 });
+			}
+			else if(iMatrix(j, i) < 0)
+			{
+				cv::Point2d p1(i * W, j * H);
+				cv::Point2d p2((i + 1) * W, (j + 1) * H);
+				cv::rectangle(Image, p1, p2, cv::Scalar{ 255 , 23 , 0 }, cv::FILLED);
+			}
+
+	cv::Point2d p3(0, first * H);
+	cv::Point2d p4(1000, first * H);
+	cv::line(Image, p3, p4, cv::Scalar{ 255,0,0 });
+	cv::Point2d p5(0, second * H);
+	cv::Point2d p6(1000, second * H);
+	cv::line(Image, p5, p6, cv::Scalar{ 255,0,0 });
+
+	while (cvWaitKey(10) != 's')
+	{
+		cv::imshow("Matrix", Image);
+	}
+	return;
+}
+
+int Dev_Inter::Matrix_Rank(const Eigen::MatrixXf& iMatrix)
+{
+	Eigen::MatrixXf tempMat(iMatrix);
+	int r = 0;
+	int c = 0;
+	while (r < tempMat.rows() && c < tempMat.cols())
+	{
+		if (tempMat(r, c))
+		{
+			for (int j = r + 1; j < tempMat.rows(); ++j)
+			{
+				if (!tempMat(j, c))
+					continue;
+				for (int k = c + 1; k < tempMat.cols(); ++k)
+				{
+					tempMat(j, k) -= tempMat(r, k) * (tempMat(j, c) / tempMat(r, c));
+				}
+				tempMat(j, c) = 0;
+			}
+			++r;
+		}
+		++c;
+	}
+	return r;
+}
+
+bool Dev_Inter::my_LLT(const Eigen::SparseMatrix<float>& in_Mat, Eigen::MatrixXf& Result)
+{
+	Eigen::MatrixXf tempMat(in_Mat);
+	Result = Eigen::MatrixXf::Identity(in_Mat.rows(), in_Mat.cols());
+	for (int i = 0; i < tempMat.cols(); ++i)
+	{
+		if (tempMat(i, i) == 0)
+		{
+			std::cout << "Zero Element in " << i << "!!!" << std::endl;
+			return false;
+		}
+		for (int j = i + 1; j < tempMat.rows(); ++j)
+		{
+			if (!tempMat(j, i))
+				continue;
+			Result(j, i) = tempMat(j, i) / tempMat(i, i);
+			tempMat(j, i) = 0;
+			for (int k = (i + 1); k < tempMat.cols(); ++k)
+			{
+				tempMat(j, k) -= tempMat(i, k) * Result(j, i);
+			}
+		}
+		for (int j = i; j < tempMat.rows(); ++j)
+		{
+			Result(j, i) *= sqrt(tempMat(i, i));
+		}
+	}
+	return true;
+}

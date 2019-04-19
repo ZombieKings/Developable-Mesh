@@ -260,3 +260,5 @@ paket-files/
 __pycache__/
 *.pyc
 /build
+/src/test.cpp
+/src/LDLT.cpp
