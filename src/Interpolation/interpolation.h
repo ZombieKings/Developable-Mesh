@@ -8,7 +8,6 @@
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
 #include <Eigen/SparseCholesky>
-#include <Eigen/SparseQR>
 
 #include <pcl/point_types.h>
 #include <pcl/common/transforms.h>

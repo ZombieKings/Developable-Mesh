@@ -1,4 +1,4 @@
-#include "Dev_Inter.h"
+#include "interpolation.h"
 
 Dev_Inter::Dev_Inter(Surface_mesh input_mesh, std::vector<Point> input_anchor, std::vector<unsigned int> input_anchor_idx) :ori_mesh_(input_mesh), anchor_position_(input_anchor), anchor_idx_(input_anchor_idx)
 {

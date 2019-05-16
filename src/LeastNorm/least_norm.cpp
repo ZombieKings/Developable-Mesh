@@ -1,6 +1,6 @@
-#include "Dev_Creator.h"
+#include "least_norm.h"
 
-int Dev_Creator::Deformation()
+int Dev_LN::Deformation()
 {
 	cur_mesh_ = ori_mesh_;
 	cur_mesh_mat_ = ori_mesh_mat_;
@@ -42,7 +42,7 @@ int Dev_Creator::Deformation()
 	return 1;
 }
 
-double Dev_Creator::Cal_Error(const Eigen::Matrix3Xd &V,int flag)
+double Dev_LN::Cal_Error(const Eigen::Matrix3Xd &V,int flag)
 {
 	Eigen::Matrix3Xd A_mat;
 	cal_angles(V, face_mat_, A_mat);
@@ -79,12 +79,12 @@ double Dev_Creator::Cal_Error(const Eigen::Matrix3Xd &V,int flag)
 	}
 }
 
-const surface_mesh::Surface_mesh& Dev_Creator::Get_Result() const
+const surface_mesh::Surface_mesh& Dev_LN::Get_Result() const
 {
 	return cur_mesh_;
 }
 
-int Dev_Creator::Build_Equation()
+int Dev_LN::Build_Equation()
 {
 	//清零等式变量
 	coeff_A_.resize(inter_p_.size(), vnum_ * 3);
@@ -159,7 +159,7 @@ int Dev_Creator::Build_Equation()
 	return 1;
 }
 
-int Dev_Creator::Solve_Problem()
+int Dev_LN::Solve_Problem()
 {
 	Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
 	Eigen::SparseMatrix<double> tempAT = Eigen::SparseMatrix<double>(coeff_A_.transpose());
@@ -197,7 +197,7 @@ int Dev_Creator::Solve_Problem()
 
 }
 
-Eigen::MatrixX3d Dev_Creator::Fit_Line(const std::vector<int>& l_idx, int dense)
+Eigen::MatrixX3d Dev_LN::Fit_Line(const std::vector<int>& l_idx, int dense)
 {
 	//导入线段，并弦长参数化
 	Eigen::MatrixX3d mp;
@@ -249,7 +249,7 @@ Eigen::MatrixX3d Dev_Creator::Fit_Line(const std::vector<int>& l_idx, int dense)
 	return result;
 }
 
-int Dev_Creator::Read_File(const std::string &filename)
+int Dev_LN::Read_File(const std::string &filename)
 {
 	std::ifstream is(filename);
 	if (!is)
@@ -295,7 +295,7 @@ int Dev_Creator::Read_File(const std::string &filename)
 	return 1;
 }
 
-int Dev_Creator::CreatMesh(size_t dense)
+int Dev_LN::CreatMesh(size_t dense)
 {
 	//计算网格顶点数
 	vnum_ = (dense + 3)*(dense + 1);
@@ -465,14 +465,14 @@ int Dev_Creator::CreatMesh(size_t dense)
 	return 1;
 }
 
-int Dev_Creator::SetCondition(double delta, size_t times)
+int Dev_LN::SetCondition(double delta, size_t times)
 {
 	epsilon_ = delta;
 	it_count_ = times;
 	return 1;
 }
 
-int Dev_Creator::Update_Mesh()
+int Dev_LN::Update_Mesh()
 {
 	//构造矩阵 
 	Eigen::SparseMatrix<double> coeff_ls;
@@ -557,7 +557,7 @@ int Dev_Creator::Update_Mesh()
 	return 1;
 }
 
-int Dev_Creator::cal_topo_laplace(const Eigen::MatrixXd &V, const Eigen::Matrix3Xi &F, Eigen::SparseMatrix<double> &L)
+int Dev_LN::cal_topo_laplace(const Eigen::MatrixXd &V, const Eigen::Matrix3Xi &F, Eigen::SparseMatrix<double> &L)
 {
 	const size_t num_faces = F.cols();
 	std::vector<Eigen::Triplet<double>> triple;
@@ -578,7 +578,7 @@ int Dev_Creator::cal_topo_laplace(const Eigen::MatrixXd &V, const Eigen::Matrix3
 	return 1;
 }
 
-int Dev_Creator::cal_cot_laplace(const Eigen::MatrixXd &V, const Eigen::Matrix3Xi &F, Eigen::SparseMatrix<double> &L)
+int Dev_LN::cal_cot_laplace(const Eigen::MatrixXd &V, const Eigen::Matrix3Xi &F, Eigen::SparseMatrix<double> &L)
 {
 	Eigen::Matrix3Xd angles;
 	cal_angles(V, F, angles);
@@ -605,7 +605,7 @@ int Dev_Creator::cal_cot_laplace(const Eigen::MatrixXd &V, const Eigen::Matrix3X
 	return 1;
 }
 
-void Dev_Creator::cal_angles(const Eigen::Matrix3Xd &V, const Eigen::Matrix3Xi &F, Eigen::Matrix3Xd &angles)
+void Dev_LN::cal_angles(const Eigen::Matrix3Xd &V, const Eigen::Matrix3Xi &F, Eigen::Matrix3Xd &angles)
 {
 	angles.resize(3, F.cols());
 	for (size_t j = 0; j < F.cols(); ++j)

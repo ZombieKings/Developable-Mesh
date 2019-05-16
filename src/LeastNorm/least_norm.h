@@ -21,14 +21,14 @@
 using namespace surface_mesh;
 //=============================================================================
 
-class Dev_Creator
+class Dev_LN
 {
 public:
 
 	//Constructor
-	Dev_Creator() {};
+	Dev_LN() {};
 	//Deconstructor
-	~Dev_Creator() {};
+	~Dev_LN() {};
 
 private:
 	//------Mesh Data------
@@ -68,7 +68,7 @@ public:
 
 	int Deformation();
 
-	const Surface_mesh& Dev_Creator::Get_Result() const;
+	const Surface_mesh& Dev_LN::Get_Result() const;
 private:
 	//------Equation Datas------
 	Eigen::SparseMatrix<double> coeff_A_;
@@ -104,9 +104,9 @@ private:
 
 	int cal_topo_laplace(const Eigen::MatrixXd &V, const Eigen::Matrix3Xi &F, Eigen::SparseMatrix<double> &L);
 	
-	void Dev_Creator::cal_angles(const Eigen::Matrix3Xd &V, const Eigen::Matrix3Xi &F, Eigen::Matrix3Xd &angles);
+	void Dev_LN::cal_angles(const Eigen::Matrix3Xd &V, const Eigen::Matrix3Xi &F, Eigen::Matrix3Xd &angles);
 
-	int Dev_Creator::cal_cot_laplace(const Eigen::MatrixXd &V, const Eigen::Matrix3Xi &F, Eigen::SparseMatrix<double> &L);
+	int Dev_LN::cal_cot_laplace(const Eigen::MatrixXd &V, const Eigen::Matrix3Xi &F, Eigen::SparseMatrix<double> &L);
 private:
 	//---------Temporary Data------------
 	std::vector<Eigen::Triplet<double>> tri_Coeff_;
