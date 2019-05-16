@@ -1,51 +1,71 @@
 #include "Dev_Inter.h"
 
-#include <pcl/point_types.h>
-#include <pcl/common/transforms.h>
-#include <pcl/visualization/pcl_visualizer.h>
+
 
 #define SIZE 
 
 int main(int argc, char** argv)
 {
 	Surface_mesh mesh;
-	//for (int i = 0; i < SIZE; ++i)
-	//	for (int j = 0; j < SIZE; ++j)
-	//		mesh.add_vertex(Point(i + 1, j + 1, 1));
+	mesh.read("test10.off");
 
-	//for (int i = 0; i < SIZE - 1; ++i)
-	//	for (int j = 0; j < SIZE - 1; ++j)
+	std::cout << "vertices: " << mesh.n_vertices() << std::endl;
+	std::cout << "edges: " << mesh.n_edges() << std::endl;
+	std::cout << "faces: " << mesh.n_faces() << std::endl;
+
+	//std::vector<unsigned int> anchor_idx{ 0,1,2,3,4 };
+	//std::vector<Point> anchor_pos;
+	//anchor_pos.push_back(Point(1001, 1001, 1001));
+	//anchor_pos.push_back(Point(1000, 1002, 1000));
+	//anchor_pos.push_back(Point(1001, 1001, 1000));
+	//anchor_pos.push_back(Point(1002, 1000, 1000));
+	//anchor_pos.push_back(Point(1002, 1002, 1000));
+
+
+	std::vector<unsigned int> anchor_idx{ 0 };
+	std::vector<Point> anchor_pos;
+	anchor_pos.push_back(Point(104, 104, 102));
+	int counter = 0;
+	//for (auto vit : mesh.vertices())
+	//{
+	//	if (mesh.position(vit).x == 108 || mesh.position(vit).y == 108)
 	//	{
-	//		mesh.add_triangle(Surface_mesh::Vertex(j + i * SIZE), Surface_mesh::Vertex((j + 1) + i * SIZE), Surface_mesh::Vertex((j + 1) + (i + 1) * SIZE));
-	//		mesh.add_triangle(Surface_mesh::Vertex(j + i * SIZE), Surface_mesh::Vertex((j + 1) + (i + 1) * SIZE), Surface_mesh::Vertex(j + (i + 1) * SIZE));
+	//		anchor_idx.push_back(vit.idx());
+	//		anchor_pos.push_back(mesh.position(vit));
 	//	}
-	mesh.read("Skirt.obj");
+	//}
 
+	for (auto vit : mesh.vertices())
+	{
+		if (mesh.position(vit).x == 118 || mesh.position(vit).y == 118)
+		{
+			anchor_idx.push_back(vit.idx());
+			anchor_pos.push_back(mesh.position(vit));
+			++counter;
+		}
+	}
+	std::cout <<"number of anchor points: "<< counter << std::endl;
+
+	//for (auto vit : mesh.vertices())
+	//{
+	//	if (mesh.position(vit).x == 138 || mesh.position(vit).y == 138)
+	//	{
+	//		anchor_idx.push_back(vit.idx());
+	//		anchor_pos.push_back(mesh.position(vit));
+	//	}
+	//}
+
+	//mesh.read("Skirt.obj");
 	//std::cout << "vertices: " << mesh.n_vertices() << std::endl;
 	//std::cout << "edges: " << mesh.n_edges() << std::endl;
 	//std::cout << "faces: " << mesh.n_faces() << std::endl;
 
 	//std::vector<unsigned int> anchor_idx{ 0 };
 	//std::vector<Point> anchor_pos;
-	//anchor_pos.push_back(Point(108, 108, 102));
+
+	//anchor_pos.push_back(Point(110, 110, 105));
 
 
-	//for (auto vit: mesh.vertices())
-	//{
-	//	if (mesh.position(vit).x == 108 || mesh.position(vit).y == 108)
-	//	{ 
-	//		anchor_idx.push_back(vit.idx());
-	//		anchor_pos.push_back(mesh.position(vit));
-	//	}
-	//}
-	//for (auto vit : mesh.vertices())
-	//{
-	//	if (mesh.position(vit).x == 107 || mesh.position(vit).y == 107)
-	//	{
-	//		anchor_idx.push_back(vit.idx());
-	//		anchor_pos.push_back(mesh.position(vit));
-	//	}
-	//}
 
 	//for (int i = 1; i <= SIZE; ++i)
 	//{
@@ -59,15 +79,15 @@ int main(int argc, char** argv)
 	//	anchor_pos.push_back(mesh.position(Surface_mesh::Vertex((SIZE)*(SIZE - 1) + i)));
 	//}
 
-	std::vector<unsigned int> anchor_idx;
-	std::vector<Point> anchor_pos;
+	//std::vector<unsigned int> anchor_idx;
+	//std::vector<Point> anchor_pos;
 
-	for (const auto &vit : mesh.vertices())
-		if (mesh.position(vit)[1] > 24.5 || mesh.position(vit)[1] < -35 || abs(mesh.position(vit)[1]) < 1)
-		{
-			anchor_idx.push_back(vit.idx());
-			anchor_pos.push_back(mesh.position(vit));
-		}
+	//for (const auto &vit : mesh.vertices())
+	//	if (mesh.position(vit)[1] > 24.5 || mesh.position(vit)[1] < -35 || abs(mesh.position(vit)[1]) < 1)
+	//	{
+	//		anchor_idx.push_back(vit.idx());
+	//		anchor_pos.push_back(mesh.position(vit));
+	//	}
 
 	Dev_Inter cDef(mesh, anchor_pos, anchor_idx);
 	cDef.SetConditions(0.001, 0.05, 0.01, 0.01, 0.01, 0.15, 0.01);
@@ -82,9 +102,9 @@ int main(int argc, char** argv)
 	//{
 	//	cloud->push_back(pcl::PointXYZ(result_mesh.position(vit).x, result_mesh.position(vit).y, result_mesh.position(vit).z));
 	//}	
-	for (auto vit : mesh.vertices())
+	for (auto vit : result_mesh.vertices())
 	{
-		cloud->push_back(pcl::PointXYZ(mesh.position(vit).x, mesh.position(vit).y, mesh.position(vit).z));
+		cloud->push_back(pcl::PointXYZ(result_mesh.position(vit).x, result_mesh.position(vit).y, result_mesh.position(vit).z));
 	}
 
 	pcl::PolygonMesh::Ptr polygon_ptr(new pcl::PolygonMesh);
@@ -117,7 +137,5 @@ int main(int argc, char** argv)
 	{
 		viewer.spinOnce();
 	}
-
-
 	return 0;
 }

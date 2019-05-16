@@ -8,8 +8,11 @@
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
 #include <Eigen/SparseCholesky>
-#include <Eigen/Eigenvalues>
-#include <Eigen/SparseLU>
+#include <Eigen/SparseQR>
+
+#include <pcl/point_types.h>
+#include <pcl/common/transforms.h>
+#include <pcl/visualization/pcl_visualizer.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -62,7 +65,7 @@ public:
 
 private:
 	//------Equation Datas------
-	Eigen::SparseMatrix<float> coeff_A_;
+	Eigen::SparseMatrix<double> coeff_A_;
 
 	Eigen::VectorXf right_b_;
 
@@ -92,9 +95,6 @@ private:
 	Surface_mesh CreatMesh(size_t mesh_size);
 
 private:
-	//Collect all edge length and save in a upper triangular matrix
-	Eigen::SparseMatrix<float> Col_Length(const Surface_mesh& input_mesh) const;
-
 	//Calculate Gaussian curvature constraint at vertex v
 	int Cal_CurvatureCoeff(const Surface_mesh::Vertex& v, size_t num);
 
@@ -113,18 +113,17 @@ private:
 	//Use S update mesh
 	int Update_Mesh();
 
+	//Matrix visualizator
 	void Matrix_Visualization(const Eigen::MatrixXf& iMatrix, double first, double second);
 
-	int Matrix_Rank(const Eigen::MatrixXf& iMatrix);
+	int Matrix_Rank(const Eigen::SparseMatrix<float>& inMatrix);
 
-	bool my_LLT(const Eigen::SparseMatrix<float>& in_Mat, Eigen::MatrixXf& Result);
+	float Cal_Guassion_Curvature(const Surface_mesh::Vertex& v);
+
 private:
 	//---------Temporary Data------------
 	std::vector<Tri> tri_Coeff_;
 
-	std::vector<float> temp_Area_;
-
-	Eigen::SparseMatrix<float> temp_ori_length_;
 };
 
 //将得到的系数向量导入系数矩阵中

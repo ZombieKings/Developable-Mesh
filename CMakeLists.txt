@@ -3,7 +3,7 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
-project ("Developable Mesh Deformation")
+project ("Developable Mesh")
 
 #SURFACE MESH
 include_directories("$ENV{Surface_Mesh_DIR}/include")
@@ -18,15 +18,26 @@ find_package(PCL 1.3 REQUIRED COMPONENTS common visualization)
 find_package(OpenCV REQUIRED)
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 
+#alglib
+include_directories("$ENV{Alglib_DIR}/inc")
+
 include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
-add_executable(Deformation "src/main.cpp" "src/Dev_Inter.cpp" "src/Dev_Inter.h")
-target_link_libraries(Deformation "$ENV{Surface_Mesh_DIR}/lib/surface_mesh.lib")
-target_link_libraries(Deformation Eigen3::Eigen)
-target_link_libraries(Deformation ${PCL_LIBRARIES})
-target_link_libraries(Deformation ${OpenCV_LIBS})
+add_executable(Interpolation "src/main.cpp" "src/interpolation.cpp" "src/interpolation.h")
+target_link_libraries(Interpolation "$ENV{Surface_Mesh_DIR}/lib/surface_mesh.lib")
+target_link_libraries(Interpolation Eigen3::Eigen)
+target_link_libraries(Interpolation ${PCL_LIBRARIES})
+target_link_libraries(Interpolation ${OpenCV_LIBS})
+
+add_executable(Least_Norm "src/main.cpp" "src/least_norm.cpp" "src/least_norm.h")
+target_link_libraries(Least_Norm "$ENV{Surface_Mesh_DIR}/lib/surface_mesh.lib")
+target_link_libraries(Least_Norm Eigen3::Eigen)
+target_link_libraries(Least_Norm ${PCL_LIBRARIES})
+target_link_libraries(Least_Norm ${OpenCV_LIBS})
+target_link_libraries(Least_Norm debug "$ENV{Alglib_DIR}/lib/alglib_debug.lib" )
+target_link_libraries(Least_Norm optimized  "$ENV{Alglib_DIR}/lib/alglib_release.lib")
 
 add_executable(TestObject "src/test.cpp")
 target_link_libraries(TestObject "$ENV{Surface_Mesh_DIR}/lib/surface_mesh.lib")
@@ -34,6 +45,7 @@ target_link_libraries(TestObject Eigen3::Eigen)
 target_link_libraries(TestObject ${PCL_LIBRARIES})
 target_link_libraries(TestObject ${OpenCV_LIBS})
 
-add_executable(LDLT "src/LDLT.cpp")
-target_link_libraries(TestObject Eigen3::Eigen)
-target_link_libraries(TestObject ${OpenCV_LIBS})
+add_executable(Temp "src/temp.cpp")
+target_link_libraries(Temp Eigen3::Eigen)
+target_link_libraries(Temp ${OpenCV_LIBS})
+target_link_libraries(Temp ${PCL_LIBRARIES})
