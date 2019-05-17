@@ -1,13 +1,15 @@
-#include "Dev_Creator.h"
+#include "least_norm.h"
 
 
 int main(int argc, char** argv)
 {
-	Dev_Creator DC;
-	DC.Read_File("data.txt");
-	DC.CreatMesh(20);
-	DC.Deformation();
-	Surface_mesh result_mesh(DC.Get_Result());
+	Dev_LN cD;
+	if (!cD.Load_Mesh("1.off"))
+	{
+		return 0;
+	}
+	cD.Deformation();
+	Surface_mesh result_mesh(cD.Get_Result());
 
 	//-----------Visualizer------------
 	//将网格导入点云
@@ -32,6 +34,20 @@ int main(int argc, char** argv)
 	pcl::visualization::PCLVisualizer viewer("viewer");
 	viewer.setBackgroundColor(0, 0, 0);
 	viewer.addPolygonMesh(*polygon_ptr);
+
+	//pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2(new pcl::PointCloud<pcl::PointXYZ>);
+	//for (auto vit : mesh.vertices())
+	//{
+	//	if (mesh.is_boundary(vit))
+	//	{
+	//		cloud2->push_back(pcl::PointXYZ(mesh.position(vit).x, mesh.position(vit).y, mesh.position(vit).z));
+	//	}
+	//}
+	//pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> handler2(cloud2, 255, 0, 0);
+	//viewer.addPointCloud(cloud2, handler2, "cloud2");
+	//viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "cloud2");
+
+
 
 	while (!viewer.wasStopped())
 	{

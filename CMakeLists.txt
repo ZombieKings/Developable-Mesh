@@ -31,7 +31,7 @@ target_link_libraries(Interpolation Eigen3::Eigen)
 target_link_libraries(Interpolation ${PCL_LIBRARIES})
 target_link_libraries(Interpolation ${OpenCV_LIBS})
 
-add_executable(Least_Norm "src/LeastNorm/main.cpp" "src/LeastNorm/least_norm.cpp" "src/LeastNorm/least_norm.h")
+add_executable(Least_Norm "src/LeastNorm/main.cpp" "src/LeastNorm/least_norm.cpp" "src/LeastNorm/least_norm.h" "src/mesh_tools.h")
 target_link_libraries(Least_Norm "$ENV{Surface_Mesh_DIR}/lib/surface_mesh.lib")
 target_link_libraries(Least_Norm Eigen3::Eigen)
 target_link_libraries(Least_Norm ${PCL_LIBRARIES})

@@ -263,3 +263,4 @@ __pycache__/
 /src/test.cpp
 /src/LDLT.cpp
 /src/temp.cpp
+/src/mesh_tools.h
