@@ -1,8 +1,4 @@
-#include "Dev_Inter.h"
-
-
-
-#define SIZE 
+#include "interpolation.h"
 
 int main(int argc, char** argv)
 {

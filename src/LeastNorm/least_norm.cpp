@@ -26,6 +26,10 @@ int Dev_LN::Load_Mesh(const std::string &filename)
 			inter_p_.push_back(vit.idx());
 			inter_p_r_(vit.idx()) = count++;
 		}
+		else
+		{
+			boundary_p_.push_back(vit.idx());
+		}
 
 	//根据内部顶点数设置参数
 	vnum_ = inter_p_.size();
@@ -46,11 +50,11 @@ int Dev_LN::SetCondition(double delta, size_t times)
 	return 1;
 }
 
-double Dev_LN::Cal_Error(const Eigen::Matrix3Xd &V, int flag)
+double Dev_LN::Cal_Error(const Eigen::Matrix3Xf &V, int flag)
 {
-	Eigen::Matrix3Xd A_mat;
+	Eigen::Matrix3Xf A_mat;
 	cal_angles(V, face_mat_, A_mat);
-	Eigen::VectorXd temp_angle;
+	Eigen::VectorXf temp_angle;
 	temp_angle.resize(V.cols());
 	temp_angle.setZero();
 	for (size_t j = 0; j < face_mat_.cols(); ++j)
@@ -81,12 +85,26 @@ double Dev_LN::Cal_Error(const Eigen::Matrix3Xd &V, int flag)
 	}
 }
 
+void Dev_LN::cal_angles(const Eigen::Matrix3Xf &V, const Eigen::Matrix3Xi &F, Eigen::Matrix3Xf &angles)
+{
+
+	angles.resize(3, F.cols());
+	for (size_t j = 0; j < F.cols(); ++j) {
+		const Eigen::Vector3i &fv = F.col(j);
+		for (size_t vi = 0; vi < 3; ++vi) {
+			const Eigen::VectorXf &p0 = V.col(fv[vi]);
+			const Eigen::VectorXf &p1 = V.col(fv[(vi + 1) % 3]);
+			const Eigen::VectorXf &p2 = V.col(fv[(vi + 2) % 3]);
+			const float angle = std::acos(std::max(-1.0f, std::min(1.0f, (p1 - p0).normalized().dot((p2 - p0).normalized()))));
+			angles(vi, j) = angle;
+		}
+	}
+}
+
 const surface_mesh::Surface_mesh& Dev_LN::Get_Result() const
 {
 	return cur_mesh_;
 }
-
-
 
 int Dev_LN::Deformation()
 {
@@ -197,11 +215,12 @@ int Dev_LN::Build_Equation()
 
 int Dev_LN::Solve_Problem()
 {
-	Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-	Eigen::SparseMatrix<double> tempAT = Eigen::SparseMatrix<double>(coeff_A_.transpose());
-	Eigen::SparseMatrix<double> tempA = (coeff_A_ * tempAT).eval();
+	Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>> solver;
+	Eigen::SparseMatrix<float> tempAT = Eigen::SparseMatrix<float>(coeff_A_.transpose());
+	Eigen::SparseMatrix<float> tempA = (coeff_A_ * tempAT).eval();
 
-	solver.analyzePattern(tempA);
+	//solver.analyzePattern(tempA);
+	//solver.compute(tempA);
 	solver.compute(tempA);
 	if (solver.info() != Eigen::Success)
 	{
@@ -210,12 +229,12 @@ int Dev_LN::Solve_Problem()
 	}
 
 	result_x_.setZero();
-	Eigen::VectorXd tempx(result_x_);
+	Eigen::VectorXf tempx(result_x_);
 	//std::cout << "right b: " << std::endl;
 	//std::cout << right_b_ << std::endl;
 
 	tempx = solver.solve(right_b_);
-	result_x_ = tempAT * tempx;
+	result_x_ = solver.matrixU() * tempx;
 
 	//std::cout << "result_x_:" << std::endl;
 	//std::cout << result_x_ << std::endl;
@@ -227,103 +246,82 @@ int Dev_LN::Solve_Problem()
 	}
 
 	return 1;
-
 }
 
 int Dev_LN::Update_Mesh()
 {
+	//build equation systems
+	Eigen::SparseQR<Eigen::SparseMatrix<float>, Eigen::COLAMDOrdering<int>> solver;
+
 	//构造矩阵 
-	Eigen::SparseMatrix<double> coeff_ls;
-	cal_cot_laplace(cur_mesh_mat_, face_mat_, coeff_ls);
-	coeff_ls.conservativeResize(vnum_ * 2, vnum_);
-	coeff_ls.reserve(Eigen::VectorXi::Constant(vnum_ * 2, 50));
+	Eigen::SparseMatrix<float,Eigen::RowMajor> coeff_ls;
+	Eigen::SparseMatrix<float> cotL;
+	cal_cot_laplace(cur_mesh_, cotL);
+
+	Eigen::MatrixX3f b_ls;
+	b_ls.resize(cur_mesh_mat_.cols()*2, 3);
+	b_ls.setZero();
+	b_ls.topRows(cur_mesh_mat_.cols()) = cur_mesh_mat_.transpose();
+
+	Eigen::MatrixX3f tempv(cur_mesh_mat_.transpose());
 	for (int i = 0; i < vnum_; ++i)
 	{
-		coeff_ls.insert(i + vnum_, i) = 1;
+		tempv(inter_p_[i], 0) += result_x_(3 * i);
+		tempv(inter_p_[i], 1) += result_x_(3 * i + 1);
+		tempv(inter_p_[i], 2) += result_x_(3 * i + 2);
+	}
+	b_ls.bottomRows(cur_mesh_mat_.cols()) = tempv;
+	//pin boundary points
+	for (int i = 0; i < boundary_p_.size(); ++i)
+	{
+		cotL.row(boundary_p_[i]) *= 0;
+		cotL.coeffRef(boundary_p_[i], boundary_p_[i]) = 1;
+		b_ls.row(boundary_p_[i]) = cur_mesh_mat_.col(boundary_p_[i]).transpose();
+	}
+
+	coeff_ls.resize(vnum_ * 2, vnum_);
+	coeff_ls.topRows(vnum_) = cotL;
+	for (size_t i = 0; i < vnum_; ++i)
+	{
+		coeff_ls.coeffRef(i + vnum_, i) = 1;
 	}
 	coeff_ls.makeCompressed();
 
-	Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-	Eigen::MatrixX3d tempb;
-	Eigen::SparseMatrix<double> tempA = (coeff_ls.transpose() * coeff_ls).eval();
-	solver.compute(tempA);
+	solver.compute(coeff_ls);
 
-	Eigen::MatrixX3d b_ls;
-	b_ls.resize(2 * vnum_, 3);
-	b_ls.setZero();
-	Eigen::MatrixX3d tempv;
-	tempv.resize(vnum_, Eigen::NoChange);
-	Eigen::Matrix3Xd tempmat(cur_mesh_mat_);
-	for (int i = 0; i < vnum_; ++i)
-	{
-		tempv(i, 0) = cur_mesh_mat_(0, inter_p_[i]) + result_x_(3 * i);
-		tempv(i, 1) = cur_mesh_mat_(1, inter_p_[i]) + result_x_(3 * i + 1);
-		tempv(i, 2) = cur_mesh_mat_(2, inter_p_[i]) + result_x_(3 * i + 2);
-		tempmat.col(inter_p_[i]) = tempv.row(i).transpose();
-	}
 	int counter = 0;
 	double pre_err = pow(10, 6), err;
-	err = Cal_Error(tempmat, 1);
+	err = Cal_Error(cur_mesh_mat_, 1);
 	while (err > 0.001)
 	{
 		if (counter > 20 && pre_err - err < 0.01)
 			break;
 
-		b_ls.bottomRows(vnum_) = tempv;
+		b_ls = tempv;
 
 		if (solver.info() != Eigen::Success)
 		{
 			std::cout << solver.info() << std::endl;
 		}
-		tempb = (coeff_ls.transpose() * b_ls).eval();
-		tempv = solver.solve(tempb);
+		tempv = solver.solve(b_ls);
 
-		for (int i = 0; i < vnum_; ++i)
-		{
-			tempmat.col(inter_p_[i]) = tempv.row(i).transpose();
-		}
+		cur_mesh_mat_ = tempv.transpose();
 		pre_err = err;
-		err = Cal_Error(tempmat, 1);
+		err = Cal_Error(cur_mesh_mat_, 1);
 		++counter;
 	}
 
-	//update mesh matrix
-	for (int i = 0; i < tempv.rows(); ++i)
-	{
-		cur_mesh_mat_.col(inter_p_[i]) = tempv.row(i);
-	}
 	//update mesh 
 	auto points = cur_mesh_.get_vertex_property<Point>("v:point");
-	for (int i = 0; i < tempv.rows(); ++i)
+	for (auto vit : cur_mesh_.vertices())
 	{
-		points[Surface_mesh::Vertex(inter_p_[i])] = Point(tempv(i, 0), tempv(i, 1), tempv(i, 2));
+		points[vit] = Point(cur_mesh_mat_(0, vit.idx()), cur_mesh_mat_(1, vit.idx()), cur_mesh_mat_(2, vit.idx()));
 	}
 
-	////update mesh matrix
-	//Eigen::MatrixX3d tempv;
-	//tempv.resize(vnum_, Eigen::NoChange);
-	//for (int i = 0; i < vnum_; ++i)
-	//{
-	//	tempv(i, 0) = cur_mesh_mat_(0, inter_p_[i]) + result_x_(3 * i);
-	//	tempv(i, 1) = cur_mesh_mat_(1, inter_p_[i]) + result_x_(3 * i + 1);
-	//	tempv(i, 2) = cur_mesh_mat_(2, inter_p_[i]) + result_x_(3 * i + 2);
-	//}
-	//for (int i = 0; i < tempv.rows(); ++i)
-	//{
-	//	cur_mesh_mat_.col(inter_p_[i]) = tempv.row(i);
-	//}
-	////update mesh 
-	//auto points = cur_mesh_.get_vertex_property<Point>("v:point");
-	//for (int i = 0; i < tempv.rows(); ++i)
-	//{
-	//	points[Surface_mesh::Vertex(inter_p_[i])] = Point(tempv(i,0), tempv(i, 1), tempv(i, 2));
-	//}
 	return 1;
 }
 
-
-
-void Dev_LN::mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xd& vertices_mat, Eigen::Matrix3Xi& faces_mat)
+void Dev_LN::mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xf& vertices_mat, Eigen::Matrix3Xi& faces_mat)
 {
 	faces_mat.resize(3, mesh.n_faces());
 	vertices_mat.resize(3, mesh.n_vertices());
@@ -350,74 +348,65 @@ void Dev_LN::mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3X
 	}
 }
 
-void Dev_LN::cal_angles(const Eigen::Matrix3Xd &V, const Eigen::Matrix3Xi &F, Eigen::Matrix3Xd &angles)
+int  Dev_LN::cal_cot_laplace(const Surface_mesh& mesh, Eigen::SparseMatrix<float> &L)
 {
-	angles.resize(3, F.cols());
-	for (size_t j = 0; j < F.cols(); ++j)
-	{
-		const Eigen::Vector3i &fv = F.col(j);
-		for (size_t vi = 0; vi < 3; ++vi)
-		{
-			const Eigen::VectorXd &p0 = V.col(fv[vi]);
-			const Eigen::VectorXd &p1 = V.col(fv[(vi + 1) % 3]);
-			const Eigen::VectorXd &p2 = V.col(fv[(vi + 2) % 3]);
-			const double angle = std::acos(std::max(-1.0, std::min(1.0, (p1 - p0).normalized().dot((p2 - p0).normalized()))));
-			angles(vi, j) = angle;
-		}
-	}
-}
+	std::vector<Eigen::Triplet<float>> triple;
 
-int Dev_LN::cal_cot_laplace(const Eigen::MatrixXd &V, const Eigen::Matrix3Xi &F, Eigen::SparseMatrix<double> &L)
-{
-	Eigen::Matrix3Xd angles;
-	cal_angles(V, F, angles);
-	std::vector<Eigen::Triplet<double>> triple;
-
-	Eigen::VectorXd area;
-	area.resize(vnum_);
-	area.setZero();
+	Eigen::VectorXf areas;
+	areas.resize(mesh.n_vertices());
+	areas.setZero();
 	double sum_area = 0;
-	for (size_t j = 0; j < F.cols(); ++j)
+	for (auto fit : mesh.faces())
 	{
-		const Eigen::Vector3i &fv = F.col(j);
-		const Eigen::Vector3d &ca = angles.col(j);
-		for (size_t vi = 0; vi < 3; ++vi)
+		int i = 0;
+		std::vector <Point> p;
+		std::vector <int> index;
+		for (auto fvit : mesh.vertices(fit))
 		{
-			const size_t j1 = (vi + 1) % 3;
-			const size_t j2 = (vi + 2) % 3;
-			const int fv0 = fv[vi];
-			const int fv1 = fv[j1];
-			const int fv2 = fv[j2];
-			if (inter_p_r_(fv0) < vnum_)
-			{
-				triple.push_back(Eigen::Triplet<double>(inter_p_r_(fv0), inter_p_r_(fv0), 1 / tan(ca[j1]) + 1 / tan(ca[j2])));
-				if (inter_p_r_(fv1) < vnum_)
-				{
-					triple.push_back(Eigen::Triplet<double>(inter_p_r_(fv0), inter_p_r_(fv1), -1 / tan(ca[j2])));
-				}
-				if (inter_p_r_(fv2) < vnum_)
-				{
-					triple.push_back(Eigen::Triplet<double>(inter_p_r_(fv0), inter_p_r_(fv2), -1 / tan(ca[j1])));
-				}
-			}
+			index.push_back(fvit.idx());
+			p.push_back(mesh.position(fvit));
 		}
-		//area coefficient
-		const Eigen::VectorXd &p0 = V.col(fv[0]);
-		const Eigen::VectorXd &p1 = V.col(fv[1]);
-		const Eigen::VectorXd &p2 = V.col(fv[2]);
-		double tempA = ((p1 - p0).norm() * (p2 - p0).norm() *std::sin(ca(0))) / 2;
-		for (int i = 0; i < 3; ++i)
-			if (inter_p_r_(fv[i]) < vnum_)
-				area(inter_p_r_(fv[i])) += tempA;
 
-		sum_area += tempA;
+		//Mix area
+		float area = norm(cross((p[1] - p[0]), (p[2] - p[0]))) / 6.0f;
+
+		//Cot
+		Eigen::Vector3f angle;
+		for (int i = 0; i < 3; ++i)
+		{
+			angle(i) = std::acos(std::max(-1.0f, std::min(1.0f, dot((p[(i + 1) % 3] - p[i]).normalize(), (p[(i + 2) % 3] - p[i]).normalize()))));
+		}
+
+		for (int i = 0; i < 3; ++i)
+		{
+			areas(index[i]) += area;
+			triple.push_back(Eigen::Triplet<float>(index[i], index[i], 1.0f / tan(angle[(i + 1) % 3]) + 1.0f / tan(angle[(i + 2) % 3])));
+			triple.push_back(Eigen::Triplet<float>(index[i], index[(i + 2) % 3], -1.0f / tan(angle[(i + 1) % 3])));
+			triple.push_back(Eigen::Triplet<float>(index[i], index[(i + 1) % 3], -1.0f / tan(angle[(i + 2) % 3])));
+		}
 	}
-	L.resize(vnum_, vnum_);
-	L.setFromTriplets(triple.begin(), triple.end());
-	L /= (sum_area / vnum_);
-	for (int i = 0; i < L.rows(); ++i)
+
+	int nInter = 0;
+	Eigen::VectorXf mark;
+	mark.resize(mesh.n_vertices());
+	mark.setZero();
+	for (size_t i = 0; i < mesh.n_vertices(); ++i)
 	{
-		L.row(i) *= area(i);
+		if (!mesh.is_boundary(Surface_mesh::Vertex(i)))
+		{
+			mark(i) = 1;
+			++nInter;
+		}
 	}
+	sum_area = areas.dot(mark) / float(nInter);
+
+	L.resize(mesh.n_vertices(), mesh.n_vertices());
+	L.setFromTriplets(triple.begin(), triple.end());
+
+	for (int r = 0; r < L.cols(); ++r)
+	{
+		L.row(r) *= sum_area / (2.0f * areas(r));
+	}
+
 	return 1;
 }
