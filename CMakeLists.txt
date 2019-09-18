@@ -11,10 +11,6 @@ include_directories("$ENV{Surface_Mesh_DIR}/include")
 #Eigen
 find_package(Eigen3 REQUIRED)
 
-#OpenCV
-find_package(OpenCV REQUIRED)
-include_directories( ${OpenCV_INCLUDE_DIRS} )
-
 #VTK
 find_package(VTK REQUIRED)
 include(${VTK_USE_FILE})
@@ -22,30 +18,52 @@ include(${VTK_USE_FILE})
 #alglib
 include_directories("$ENV{Alglib_DIR}/inc")
 
-add_executable(Interpolation "src/Interpolation/main.cpp" "src/Interpolation/interpolation.cpp" "src/Interpolation/interpolation.h" "src/mesh_tools.h")
-target_link_libraries(Interpolation "$ENV{Surface_Mesh_DIR}/lib/surface_mesh.lib")
+add_executable(Interpolation "src/Interpolation/interpolation.cpp" "src/Interpolation/interpolation.h")
+target_link_libraries(Interpolation debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(Interpolation optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
 target_link_libraries(Interpolation Eigen3::Eigen)
-target_link_libraries(Interpolation ${OpenCV_LIBS})
 target_link_libraries(Interpolation ${VTK_LIBRARIES})
 
-add_executable(Least_Norm "src/LeastNorm/main.cpp" "src/LeastNorm/least_norm.cpp" "src/LeastNorm/least_norm.h" "src/mesh_tools.h" "src/LeastNorm/myVisualizer.cpp" "src/LeastNorm/myVisualizer.h")
-target_link_libraries(Least_Norm "$ENV{Surface_Mesh_DIR}/lib/surface_mesh.lib")
+add_executable(L0Interpolation "src/L0Inter/L0Inter.cpp" "src/L0Inter/L0Inter.h")
+target_link_libraries(L0Interpolation debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(L0Interpolation optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(L0Interpolation Eigen3::Eigen)
+target_link_libraries(L0Interpolation ${VTK_LIBRARIES})
+
+add_executable(Least_Norm "src/LeastNorm/least_norm.cpp" "src/LeastNorm/least_norm.h")
+target_link_libraries(Least_Norm debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(Least_Norm optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
 target_link_libraries(Least_Norm Eigen3::Eigen)
-target_link_libraries(Least_Norm ${OpenCV_LIBS})
 target_link_libraries(Least_Norm ${VTK_LIBRARIES})
 target_link_libraries(Least_Norm debug "$ENV{Alglib_DIR}/lib/alglib_debug.lib" )
 target_link_libraries(Least_Norm optimized  "$ENV{Alglib_DIR}/lib/alglib_release.lib")
 
+add_executable(NewtonMethod "src/NewtonMethod/newtonMethod.cpp" "src/NewtonMethod/newtonMethod.h")
+target_link_libraries(NewtonMethod debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(NewtonMethod optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(NewtonMethod Eigen3::Eigen)
+target_link_libraries(NewtonMethod ${VTK_LIBRARIES})
+
 add_executable(MeshUpdate "src/MeshUpdate/meshupdate.cpp" "src/MeshUpdate/myVisualizer.cpp" "src/MeshUpdate/myVisualizer.h")
-target_link_libraries(MeshUpdate "$ENV{Surface_Mesh_DIR}/lib/surface_mesh.lib")
+target_link_libraries(MeshUpdate debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(MeshUpdate optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
 target_link_libraries(MeshUpdate Eigen3::Eigen)
 target_link_libraries(MeshUpdate ${VTK_LIBRARIES})
 
 add_executable(TestObject "src/test.cpp")
-target_link_libraries(TestObject "$ENV{Surface_Mesh_DIR}/lib/surface_mesh.lib")
+target_link_libraries(TestObject debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(TestObject optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
 target_link_libraries(TestObject Eigen3::Eigen)
-target_link_libraries(TestObject ${OpenCV_LIBS})
+target_link_libraries(TestObject ${VTK_LIBRARIES})
+
+add_executable(DifferMat "src/DifferentiationMatrix.cpp")
+target_link_libraries(DifferMat debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(DifferMat optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(DifferMat Eigen3::Eigen)
 
 add_executable(Temp "src/temp.cpp")
+target_link_libraries(Temp debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(Temp optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
 target_link_libraries(Temp Eigen3::Eigen)
-target_link_libraries(Temp ${OpenCV_LIBS})
+target_link_libraries(Temp ${VTK_LIBRARIES})
+

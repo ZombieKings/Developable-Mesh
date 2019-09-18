@@ -1,18 +1,12 @@
 #include "interpolation.h"
 
-Dev_Inter::Dev_Inter(Surface_mesh input_mesh, std::vector<Point> input_anchor, std::vector<unsigned int> input_anchor_idx) :ori_mesh_(input_mesh), anchor_position_(input_anchor), anchor_idx_(input_anchor_idx)
+Dev_Inter::Dev_Inter()
 {
 	//Collect the index of internal vertices
 	for (const auto &vit : ori_mesh_.vertices())
 		if (!ori_mesh_.is_boundary(vit))
 			inter_p_.push_back(vit.idx());
 	cur_mesh_ = ori_mesh_;
-
-	//Adapt the coefficient matrix based on the input datas
-	coeff_A_.resize(inter_p_.size() + input_mesh.n_edges() + input_anchor.size() * 3, input_mesh.n_vertices() * 3);
-	coeff_A_.reserve(inter_p_.size() * 3 * 18 + input_mesh.n_edges() * 3 * 2 + input_anchor.size() * 3 * 3);
-	right_b_.resize(inter_p_.size() + input_mesh.n_edges() + input_anchor.size() * 3);
-	scale_s_.resize(inter_p_.size() + input_mesh.n_edges() + input_anchor.size() * 3);
 
 	Cal_Error();
 	w1_ = w2_ = (ED_ + EI_ + EL_) * 50;
@@ -60,11 +54,6 @@ int Dev_Inter::Deformation()
 		++it_count;
 	}
 	return 1;
-}
-
-const surface_mesh::Surface_mesh& Dev_Inter::Get_Result() const
-{
-	return cur_mesh_;
 }
 
 int Dev_Inter::BuildMetrix()
@@ -336,48 +325,6 @@ int Dev_Inter::Update_Mesh()
 		}
 	}
 	return 1;
-}
-
-void Dev_Inter::Matrix_Visualization(const Eigen::MatrixXf& iMatrix, double first, double second)
-{
-	cv::Mat Image = cv::Mat::zeros(1000, 1000, CV_8UC3);
-	double W = 1000.0f / iMatrix.cols();
-	double H = 1000.0f / iMatrix.rows();
-	for (double i = 0; i < iMatrix.cols(); ++i)
-		for (double j = 0; j < iMatrix.rows(); ++j)
-			if (iMatrix(j, i) > 0)
-			{
-				cv::Point2d p1(i * W, j * H);
-				cv::Point2d p2((i + 1) * W, (j + 1) * H);
-				cv::rectangle(Image, p1, p2, cv::Scalar{ 0 , 0 , 255 }, cv::FILLED);
-				//cv::rectangle(Image, p1, p2, cv::Scalar{ 255 , 255 , 255 });
-			}
-			else if (iMatrix(j, i) < 0)
-			{
-				cv::Point2d p1(i * W, j * H);
-				cv::Point2d p2((i + 1) * W, (j + 1) * H);
-				cv::rectangle(Image, p1, p2, cv::Scalar{ 255 , 23 , 0 }, cv::FILLED);
-			}
-
-	cv::Point2d p3(0, first * H);
-	cv::Point2d p4(1000, first * H);
-	cv::line(Image, p3, p4, cv::Scalar{ 255,0,0 });
-	cv::Point2d p5(0, second * H);
-	cv::Point2d p6(1000, second * H);
-	cv::line(Image, p5, p6, cv::Scalar{ 255,0,0 });
-
-	while (cvWaitKey(10) != 's')
-	{
-		cv::imshow("Matrix", Image);
-	}
-	return;
-}
-
-int Dev_Inter::Matrix_Rank(const Eigen::SparseMatrix<float>& inMatrix)
-{
-	Eigen::SparseQR<Eigen::SparseMatrix<float>, Eigen::COLAMDOrdering< int >> QRsolver(inMatrix);
-	QRsolver.setPivotThreshold(1);
-	return QRsolver.rank();
 }
 
 float Dev_Inter::Cal_Guassion_Curvature(const Surface_mesh::Vertex& v)

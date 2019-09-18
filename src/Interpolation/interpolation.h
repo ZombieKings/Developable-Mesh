@@ -6,30 +6,43 @@
 #include <surface_mesh/Surface_mesh.h>
 
 #include <Eigen/Core>
-#include <Eigen/SparseCore>
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include <Eigen/SparseCholesky>
+#include <Eigen/SparseQR>
 
-#include <pcl/point_types.h>
-#include <pcl/common/transforms.h>
-#include <pcl/visualization/pcl_visualizer.h>
+#include <vtkActor.h>
+#include <vtkCamera.h>
+#include <vtkRenderer.h>
+#include <vtkRenderWindow.h>
+#include <vtkRenderWindowInteractor.h>
+#include <vtkInteractorStyleTrackballCamera.h>
+#include <vtkCallbackCommand.h>
 
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/core/eigen.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
+#include <vtkSmartPointer.h>
+#include <vtkProperty.h>
+#include <vtkPoints.h>
+#include <vtkPointData.h>
+#include <vtkPolyData.h>
+#include <vtkPolyDataMapper.h>
+#include <vtkTriangle.h>
+#include <vtkCellArray.h>
+#include <vtkDoubleArray.h>
 
-//=============================================================================
+#include <vtksys/SystemTools.hxx>
+
+#include <vtkLookupTable.h>
+#include <vtkProgrammableFilter.h>
+#include <vtkColorTransferFunction.h>
+
 using namespace surface_mesh;
-//=============================================================================
-
-typedef Eigen::Triplet<float> Tri;
 
 class Dev_Inter
 {
 public:
 
 	//Constructor
-	Dev_Inter(Surface_mesh input_mesh, std::vector<Point> input_anchor, std::vector<unsigned int> input_anchor_idx);
+	Dev_Inter();
 	//Deconstructor
 	~Dev_Inter() {};
 
