@@ -48,7 +48,7 @@
 
 #define WEIGHT1 10.0f
 #define WEIGHT2 0.1f
-#define WEIGHT3 1.0f 
+#define WEIGHT3 1.0f
 
 #define KAI 2;
 #define MAXBETA 1e5;
@@ -68,14 +68,12 @@ inline bool dcoeff(std::vector<Eigen::Triplet<float>>& target_matrix, size_t row
 	for (size_t i = 0; i < 3; ++i)
 		target_matrix.push_back(Eigen::Triplet <float>(row_ + i, col_ + i, val));
 	return true;
-
 }
 inline bool srhs(Eigen::VectorXf& b, const Eigen::Vector3f& input_vector, size_t idx)
 {
 	for (size_t i = 0; i < 3; ++i)
 		b(idx + i) += input_vector[i];
 	return true;
-
 }
 
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xf& vertices_mat, Eigen::Matrix3Xi& faces_mat);

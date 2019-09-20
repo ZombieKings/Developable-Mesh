@@ -135,7 +135,6 @@ private:
 private:
 	//---------Temporary Data------------
 	std::vector<Tri> tri_Coeff_;
-
 };
 
 //将得到的系数向量导入系数矩阵中

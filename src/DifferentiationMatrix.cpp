@@ -9,8 +9,8 @@
 
 using namespace surface_mesh;
 
-int mesh2mat(const Surface_mesh& mesh, Eigen::MatrixX3f &L);
-int cal_diff_mat(const Surface_mesh& mesh, Eigen::SparseMatrix<float> &D, Eigen::VectorXf &b);
+int mesh2mat(const Surface_mesh& mesh, Eigen::MatrixX3f& L);
+int cal_diff_mat(const Surface_mesh& mesh, Eigen::SparseMatrix<float>& D, Eigen::VectorXf& b);
 
 int main()
 {
@@ -38,7 +38,7 @@ int main()
 	return 1;
 }
 
-int mesh2mat(const Surface_mesh& mesh, Eigen::MatrixX3f &interV)
+int mesh2mat(const Surface_mesh& mesh, Eigen::MatrixX3f& interV)
 {
 	interV.resize(mesh.n_vertices(), 3);
 	for (size_t j = 0; j < mesh.n_vertices(); ++j)
@@ -49,7 +49,7 @@ int mesh2mat(const Surface_mesh& mesh, Eigen::MatrixX3f &interV)
 	return 1;
 }
 
-int cal_diff_mat(const Surface_mesh& mesh, Eigen::SparseMatrix<float> &D, Eigen::VectorXf &b)
+int cal_diff_mat(const Surface_mesh& mesh, Eigen::SparseMatrix<float>& D, Eigen::VectorXf& b)
 {
 	std::vector<int> boundidx;
 	std::vector<int> interidx;

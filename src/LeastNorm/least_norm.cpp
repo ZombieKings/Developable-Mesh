@@ -17,9 +17,6 @@ double dqn = 1;
 double theta = 0;
 double pretheta = 0;
 
-vtkSmartPointer<vtkColorTransferFunction> ctf;
-vtkSmartPointer<vtkLookupTable> lut;
-
 void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData))
 {
 	if (abs(pretheta - theta) >= 0.001 && dqn >= epsilon && counter < 50)
@@ -92,7 +89,7 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 		}
 
 		auto polydata = static_cast<vtkPolyData*>(clientData);
-		auto *iren = static_cast<vtkRenderWindowInteractor*>(caller);
+		auto* iren = static_cast<vtkRenderWindowInteractor*>(caller);
 
 		auto points = vtkSmartPointer<vtkPoints>::New();
 		for (int i = 0; i < vertices_mat.cols(); ++i)
@@ -123,7 +120,7 @@ int main(int argc, char** argv)
 	interVidx.setOnes();
 	interVidx *= -1;
 	int count = 0;
-	for (const auto &vit : mesh.vertices())
+	for (const auto& vit : mesh.vertices())
 	{
 		if (!mesh.is_boundary(vit))
 		{
@@ -202,44 +199,15 @@ void mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xf& verti
 	}
 }
 
-int LoadMatrix(const Eigen::Matrix3Xf &V, const Eigen::Matrix3Xi &F, vtkSmartPointer<vtkPolyData>& polydata)
-{
-	polydata = vtkSmartPointer<vtkPolyData>::New();
-
-	// Input vertices and faces
-	auto points = vtkSmartPointer<vtkPoints>::New();
-	for (auto i = 0; i < V.cols(); ++i)
-	{
-		points->InsertNextPoint(V.col(i).data());
-	}
-
-	auto faces = vtkSmartPointer < vtkCellArray>::New();
-	for (auto i = 0; i < F.cols(); ++i)
-	{
-		auto triangle = vtkSmartPointer<vtkTriangle>::New();
-		for (int j = 0; j < 3; ++j)
-		{
-			triangle->GetPointIds()->SetId(j, F(j, i));
-		}
-		faces->InsertNextCell(triangle);
-	}
-
-	//Assign the pieces to the vtkPolyData.
-	polydata->SetPoints(points);
-	polydata->SetPolys(faces);
-
-	return EXIT_SUCCESS;
-}
-
 void cal_angles(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::Matrix3Xf& A)
 {
 	A.resize(3, F.cols());
 	for (int f = 0; f < F.cols(); ++f) {
-		const Eigen::Vector3i &fv = F.col(f);
+		const Eigen::Vector3i& fv = F.col(f);
 		for (size_t vi = 0; vi < 3; ++vi) {
-			const Eigen::VectorXf &p0 = V.col(fv[vi]);
-			const Eigen::VectorXf &p1 = V.col(fv[(vi + 1) % 3]);
-			const Eigen::VectorXf &p2 = V.col(fv[(vi + 2) % 3]);
+			const Eigen::VectorXf& p0 = V.col(fv[vi]);
+			const Eigen::VectorXf& p1 = V.col(fv[(vi + 1) % 3]);
+			const Eigen::VectorXf& p2 = V.col(fv[(vi + 2) % 3]);
 			const float angle = std::acos(std::max(-1.0f, std::min(1.0f, (p1 - p0).normalized().dot((p2 - p0).normalized()))));
 			A(vi, f) = angle;
 		}
@@ -294,13 +262,13 @@ void cal_laplace(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eig
 	areas.setZero();
 	for (int j = 0; j < F.cols(); ++j)
 	{
-		const Eigen::Vector3i &fv = F.col(j);
-		const Eigen::Vector3f &ca = A.col(j);
+		const Eigen::Vector3i& fv = F.col(j);
+		const Eigen::Vector3f& ca = A.col(j);
 
 		//Mix area
-		const Eigen::Vector3f &p0 = V.col(fv[0]);
-		const Eigen::Vector3f &p1 = V.col(fv[1]);
-		const Eigen::Vector3f &p2 = V.col(fv[2]);
+		const Eigen::Vector3f& p0 = V.col(fv[0]);
+		const Eigen::Vector3f& p1 = V.col(fv[1]);
+		const Eigen::Vector3f& p2 = V.col(fv[2]);
 		float area = ((p1 - p0).cross(p2 - p0)).norm() / 6.0f;
 
 		for (size_t vi = 0; vi < 3; ++vi)
@@ -368,8 +336,8 @@ void cal_least_norm(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const 
 	for (int fit = 0; fit < F.cols(); ++fit)
 	{
 		//记录当前面信息
-		const Eigen::Vector3i &fv = F.col(fit);
-		const Eigen::Vector3f &ca = A.col(fit);
+		const Eigen::Vector3i& fv = F.col(fit);
+		const Eigen::Vector3f& ca = A.col(fit);
 		Eigen::Matrix3f p;
 		for (int i = 0; i < 3; ++i)
 		{
@@ -387,9 +355,9 @@ void cal_least_norm(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const 
 		for (int i = 0; i < 3; ++i)
 		{
 			//Mix area
-			const Eigen::Vector3f &p0 = p.col(i);
-			const Eigen::Vector3f &p1 = p.col((i + 1) % 3);
-			const Eigen::Vector3f &p2 = p.col((i + 2) % 3);
+			const Eigen::Vector3f& p0 = p.col(i);
+			const Eigen::Vector3f& p1 = p.col((i + 1) % 3);
+			const Eigen::Vector3f& p2 = p.col((i + 2) % 3);
 
 			sum_angle(fv[i]) += A(i, fit);
 			//判断顶点fv是否为内部顶点，边界顶点不参与计算

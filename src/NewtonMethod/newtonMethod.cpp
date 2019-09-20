@@ -36,50 +36,50 @@ int main(int argc, char** argv)
 	Eigen::VectorXi degrees;
 	calAngles_Neigh(matV, matF, angles, degrees);
 
-	//Eigen::SparseMatrix<float> A;
-	//Eigen::VectorXf b;
-	//BuildrhsB(matV, matF, boundary_v, b);
+	Eigen::SparseMatrix<float> A;
+	Eigen::VectorXf b;
+	BuildrhsB(matV, matF, boundary_v, b);
 
-	//Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>> solver;
-	//solver.compute((A.transpose() * A).eval());
+	Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>> solver;
+	solver.compute((A.transpose() * A).eval());
 
-	//if (solver.info() != Eigen::Success)
-	//{
-	//	std::cout << "solve fail" << std::endl;
-	//}
+	if (solver.info() != Eigen::Success)
+	{
+		std::cout << "solve fail" << std::endl;
+	}
 
-	////---------------可视化---------------
-	////创建窗口
-	//auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
-	//renderWindow->SetSize(1400, 800);
+	//---------------可视化---------------
+	//创建窗口
+	auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
+	renderWindow->SetSize(1400, 800);
 
-	//////---------------原始网格及法向可视化---------------
-	//auto renderer = vtkSmartPointer<vtkRenderer>::New();
-	//visualize_mesh(renderer, matV, matF, angles);
-	//renderer->SetViewport(0.0, 0.0, 0.5, 1.0);
-	////视角设置
-	//renderer->GetActiveCamera()->SetPosition(-1, 0, 0);
-	//renderer->GetActiveCamera()->SetViewUp(0, 0, 1);
-	//renderer->ResetCamera();
-	//renderWindow->AddRenderer(renderer);
+	////---------------原始网格及法向可视化---------------
+	auto renderer = vtkSmartPointer<vtkRenderer>::New();
+	visualize_mesh(renderer, matV, matF, degrees);
+	renderer->SetViewport(0.0, 0.0, 0.5, 1.0);
+	//视角设置
+	renderer->GetActiveCamera()->SetPosition(-1, 0, 0);
+	renderer->GetActiveCamera()->SetViewUp(0, 0, 1);
+	renderer->ResetCamera();
+	renderWindow->AddRenderer(renderer);
 
-	//auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
-	//interactor->SetRenderWindow(renderWindow);
-	//auto style = vtkInteractorStyleTrackballCamera::New();
-	//interactor->SetInteractorStyle(style);
+	auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+	interactor->SetRenderWindow(renderWindow);
+	auto style = vtkInteractorStyleTrackballCamera::New();
+	interactor->SetInteractorStyle(style);
 
-	//interactor->Initialize();
-	//interactor->CreateRepeatingTimer(1000);
+	interactor->Initialize();
+	interactor->CreateRepeatingTimer(1000);
 
-	//auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
-	//timeCallback->SetCallback(CallbackFunction);
-	//timeCallback->SetClientData(renderer->GetActors()->GetLastActor()->GetMapper()->GetInput());
+	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	timeCallback->SetCallback(CallbackFunction);
+	timeCallback->SetClientData(renderer->GetActors()->GetLastActor()->GetMapper()->GetInput());
 
-	//interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
+	interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
 
-	////开始s
-	//renderWindow->Render();
-	//interactor->Start();
+	//开始s
+	renderWindow->Render();
+	interactor->Start();
 
 	return EXIT_SUCCESS;
 }
@@ -120,7 +120,7 @@ void calAngles_Neigh(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen
 	for (int j = 0; j < F.cols(); ++j)
 	{
 		const Eigen::Vector3i& fv = F.col(j);
-		for (size_t vi = 0; vi < 3; ++vi) 
+		for (size_t vi = 0; vi < 3; ++vi)
 		{
 			const Eigen::VectorXf& p0 = V.col(fv[vi]);
 			const Eigen::VectorXf& p1 = V.col(fv[(vi + 1) % 3]);
@@ -148,7 +148,7 @@ void BuildCoeffMatrix(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, cons
 	for (int fi = 0; fi < F.cols(); ++fi)
 	{
 		const Eigen::Vector3i& fv = F.col(fi);
-		for (size_t vi = 0; vi < 3; ++vi) 
+		for (size_t vi = 0; vi < 3; ++vi)
 		{
 			triA.push_back(Eigen::Triplet<float>(fv[vi], fv[vi], WEIGHT1 + WEIGHT2));
 			triA.push_back(Eigen::Triplet<float>(fv[vi], fv[(vi + 1) % 3], -0.5));

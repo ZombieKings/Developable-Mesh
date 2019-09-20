@@ -47,7 +47,6 @@
 
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xf& vertices_mat, Eigen::Matrix3Xi& faces_mat);
 
-
 void calAngles_Neigh(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::Matrix3Xf& A, Eigen::VectorXi& degrees);
 void BuildCoeffMatrix(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& angles, const Eigen::VectorXi& degrees, Eigen::SparseMatrix<float>& A);
 void BuildrhsB(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const std::vector<int>& bv, Eigen::VectorXf& b);

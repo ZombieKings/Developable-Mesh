@@ -3,7 +3,7 @@
 Dev_Inter::Dev_Inter()
 {
 	//Collect the index of internal vertices
-	for (const auto &vit : ori_mesh_.vertices())
+	for (const auto& vit : ori_mesh_.vertices())
 		if (!ori_mesh_.is_boundary(vit))
 			inter_p_.push_back(vit.idx());
 	cur_mesh_ = ori_mesh_;
@@ -72,7 +72,7 @@ int Dev_Inter::BuildMetrix()
 	}
 
 	//For every edges calculate length errors
-	for (const auto &eit : cur_mesh_.edges())
+	for (const auto& eit : cur_mesh_.edges())
 	{
 		Cal_LengthCoeff(eit, cur_row++);
 	}
@@ -95,7 +95,7 @@ int Dev_Inter::SolveProblem()
 	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>> solver;
 	Eigen::VectorXf tempB = coeff_A_.transpose() * right_b_;
 	Eigen::SparseMatrix<double> tempA = (coeff_A_.transpose() * coeff_A_).eval();
-	
+
 	solver.compute(tempA);
 	Eigen::SparseMatrix<double> tempU = solver.matrixU();
 	if (solver.info() != Eigen::Success)
@@ -111,7 +111,7 @@ int Dev_Inter::SolveProblem()
 		std::cout << solver.info() << std::endl;
 		return 0;
 	}
-	for (size_t i =0;i<scale_s_.size();++i)
+	for (size_t i = 0; i < scale_s_.size(); ++i)
 	{
 		if (!isfinite(scale_s_(i)))
 		{
@@ -176,7 +176,7 @@ int Dev_Inter::Cal_CurvatureCoeff(const Surface_mesh::Vertex& v, size_t num)
 	float scale = 0.1f;
 
 	//计算原始曲率
-	right_b_(num) = - w1_ * Cal_Guassion_Curvature(v);
+	right_b_(num) = -w1_ * Cal_Guassion_Curvature(v);
 
 	//初始化
 	for (size_t i = 0; i < 3; ++i)
@@ -270,12 +270,12 @@ void Dev_Inter::Cal_Error()
 			++nex_q;
 		}
 		area /= 3;
-		ED_ += ((2 * M_PI - sum_theta) / area)*((2 * M_PI - sum_theta) / area);
+		ED_ += ((2 * M_PI - sum_theta) / area) * ((2 * M_PI - sum_theta) / area);
 	}
 
 	//For every edges calculate length errors
 	EL_ = 0;
-	for (const auto &eit : cur_mesh_.edges())
+	for (const auto& eit : cur_mesh_.edges())
 	{
 		float lo = ori_mesh_.edge_length(eit);
 		float lc = cur_mesh_.edge_length(eit);
@@ -343,7 +343,7 @@ float Dev_Inter::Cal_Guassion_Curvature(const Surface_mesh::Vertex& v)
 
 		//------计算要用到的数值-------
 		//计算内角
-		double temp = dot(vpq, vpqn) / (norm(vpq)*norm(vpqn));
+		double temp = dot(vpq, vpqn) / (norm(vpq) * norm(vpqn));
 		if (temp > 1)	temp = 1;
 		if (temp < -1)	temp = -1;
 		double theta = acos(temp);

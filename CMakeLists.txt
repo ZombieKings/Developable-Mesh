@@ -44,11 +44,11 @@ target_link_libraries(NewtonMethod optimized "$ENV{Surface_Mesh_DIR}/lib/surface
 target_link_libraries(NewtonMethod Eigen3::Eigen)
 target_link_libraries(NewtonMethod ${VTK_LIBRARIES})
 
-add_executable(MeshUpdate "src/MeshUpdate/meshupdate.cpp" "src/MeshUpdate/myVisualizer.cpp" "src/MeshUpdate/myVisualizer.h")
-target_link_libraries(MeshUpdate debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
-target_link_libraries(MeshUpdate optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
-target_link_libraries(MeshUpdate Eigen3::Eigen)
-target_link_libraries(MeshUpdate ${VTK_LIBRARIES})
+add_executable(LaplacianSmooth "src/LaplacianSmooth.cpp")
+target_link_libraries(LaplacianSmooth debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(LaplacianSmooth optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(LaplacianSmooth Eigen3::Eigen)
+target_link_libraries(LaplacianSmooth ${VTK_LIBRARIES})
 
 add_executable(TestObject "src/test.cpp")
 target_link_libraries(TestObject debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")

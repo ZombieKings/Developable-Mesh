@@ -17,14 +17,13 @@ Eigen::VectorXf update_d_;
 std::vector<int> interV;
 std::vector<int> boundV;
 Eigen::VectorXi interVidx;
-int mesh2mat(const Surface_mesh& mesh, Eigen::MatrixX3f &L);
+int mesh2mat(const Surface_mesh& mesh, Eigen::MatrixX3f& L);
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xf& vertices_mat, Eigen::Matrix3Xi& faces_mat);
 
-int cal_cot_laplace(const Surface_mesh& mesh, Eigen::SparseMatrix<float> &L);
+int cal_cot_laplace(const Surface_mesh& mesh, Eigen::SparseMatrix<float>& L);
 int UpdateMesh(const Surface_mesh& source, const Surface_mesh& target, Eigen::MatrixX3f& result);
 void cal_angles(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::Matrix3Xf& A);
 void cal_laplace(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& A, Eigen::SparseMatrix<float>& L, Eigen::MatrixX3f& b);
-
 
 int main()
 {
@@ -37,19 +36,18 @@ int main()
 	interVidx.setOnes();
 	interVidx *= -1;
 	int count = 0;
-	for (const auto &vit : mesh.vertices())
+	for (const auto& vit : mesh.vertices())
 	{
 		if (!mesh.is_boundary(vit))
 		{
 			interV.push_back(vit.idx());
-			inter_p_r_(vit.idx()) = count++;
+			interVidx(vit.idx()) = count++;
 		}
 		else
 		{
 			boundV.push_back(vit.idx());
 		}
 	}
-
 
 	Surface_mesh target(mesh);
 	target.position(Surface_mesh::Vertex(target.n_vertices() / 2)).z += 20;
@@ -61,7 +59,7 @@ int main()
 	Eigen::MatrixX3f resultM;
 	UpdateMesh(mesh, target, resultM);
 
-	//update mesh 
+	//update mesh
 	auto points = mesh.get_vertex_property<Point>("v:point");
 	for (auto vit : mesh.vertices())
 	{
@@ -72,11 +70,10 @@ int main()
 	MV.LoadMesh(mesh);
 	MV.Run();
 
-	std::cout << "endl";
 	return 1;
 }
 
-int mesh2mat(const Surface_mesh& mesh, Eigen::MatrixX3f &V)
+int mesh2mat(const Surface_mesh& mesh, Eigen::MatrixX3f& V)
 {
 	V.resize(mesh.n_vertices(), 3);
 	for (size_t j = 0; j < mesh.n_vertices(); ++j)
@@ -169,18 +166,18 @@ void cal_angles(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::Mat
 {
 	A.resize(3, F.cols());
 	for (int f = 0; f < F.cols(); ++f) {
-		const Eigen::Vector3i &fv = F.col(f);
+		const Eigen::Vector3i& fv = F.col(f);
 		for (size_t vi = 0; vi < 3; ++vi) {
-			const Eigen::VectorXf &p0 = V.col(fv[vi]);
-			const Eigen::VectorXf &p1 = V.col(fv[(vi + 1) % 3]);
-			const Eigen::VectorXf &p2 = V.col(fv[(vi + 2) % 3]);
+			const Eigen::VectorXf& p0 = V.col(fv[vi]);
+			const Eigen::VectorXf& p1 = V.col(fv[(vi + 1) % 3]);
+			const Eigen::VectorXf& p2 = V.col(fv[(vi + 2) % 3]);
 			const float angle = std::acos(std::max(-1.0f, std::min(1.0f, (p1 - p0).normalized().dot((p2 - p0).normalized()))));
 			A(vi, f) = angle;
 		}
 	}
 }
 
-int cal_cot_laplace(const Surface_mesh& mesh, Eigen::SparseMatrix<float> &L)
+int cal_cot_laplace(const Surface_mesh& mesh, Eigen::SparseMatrix<float>& L)
 {
 	std::vector<Eigen::Triplet<float>> triple;
 
@@ -253,13 +250,13 @@ void cal_laplace(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eig
 	areas.setZero();
 	for (int j = 0; j < F.cols(); ++j)
 	{
-		const Eigen::Vector3i &fv = F.col(j);
-		const Eigen::Vector3f &ca = A.col(j);
+		const Eigen::Vector3i& fv = F.col(j);
+		const Eigen::Vector3f& ca = A.col(j);
 
 		//Mix area
-		const Eigen::Vector3f &p0 = V.col(fv[0]);
-		const Eigen::Vector3f &p1 = V.col(fv[1]);
-		const Eigen::Vector3f &p2 = V.col(fv[2]);
+		const Eigen::Vector3f& p0 = V.col(fv[0]);
+		const Eigen::Vector3f& p1 = V.col(fv[1]);
+		const Eigen::Vector3f& p2 = V.col(fv[2]);
 		float area = ((p1 - p0).cross(p2 - p0)).norm() / 6.0f;
 
 		for (size_t vi = 0; vi < 3; ++vi)
@@ -268,7 +265,7 @@ void cal_laplace(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eig
 			const int fv1 = fv[(vi + 1) % 3];
 			const int fv2 = fv[(vi + 2) % 3];
 
-			if (inter_p_r_(fv0) != -1)
+			if (interVidx(fv0) != -1)
 			{
 				areas(fv0) += area;
 				triple.push_back(Eigen::Triplet<float>(fv0, fv0, 1.0f / std::tan(ca[(vi + 1) % 3]) + 1.0f / std::tan(ca[(vi + 2) % 3])));
@@ -304,7 +301,7 @@ void cal_laplace(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eig
 	//固定边界
 	for (size_t ib = 0; ib < boundV.size(); ++ib)
 	{
-		b.row(boundV[ib]) = V.col(boundV[ib]).transpose()* 1000;
+		b.row(boundV[ib]) = V.col(boundV[ib]).transpose() * 1000;
 	}
 	//变形目标
 	for (int r = 0; r < V.cols(); ++r)

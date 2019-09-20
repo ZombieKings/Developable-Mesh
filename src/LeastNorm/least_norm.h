@@ -37,12 +37,10 @@
 #include <vtkProgrammableFilter.h>
 #include <vtkColorTransferFunction.h>
 
-
 //=============================================================================
 using namespace surface_mesh;
 //=============================================================================
 
-int LoadMatrix(const Eigen::Matrix3Xf &V, const Eigen::Matrix3Xi &F, vtkSmartPointer<vtkPolyData>& polydata);
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xf& vertices_mat, Eigen::Matrix3Xi& faces_mat);
 
 void cal_angles(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::Matrix3Xf& A);

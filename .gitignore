@@ -264,3 +264,4 @@ __pycache__/
 /src/LDLT.cpp
 /src/temp.cpp
 /src/mesh_tools.h
+/CMakeSettings.json
