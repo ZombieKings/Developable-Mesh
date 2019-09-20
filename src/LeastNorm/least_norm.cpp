@@ -22,7 +22,7 @@ vtkSmartPointer<vtkLookupTable> lut;
 
 void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData))
 {
-	if (dqn >= epsilon && counter < 50)
+	if (abs(pretheta - theta) >= 0.001 && dqn >= epsilon && counter < 50)
 	{
 		//-------Least Norm----------
 		Eigen::SparseMatrix<float> A;
@@ -49,6 +49,7 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 		dqn = update_d_.squaredNorm();
 		pretheta = theta;
 		theta = cal_error(vertices_mat, faces_mat, angle_mat, 1);
+
 		std::cout << "第" << counter << "次迭代，最大误差为： " << theta << std::endl;
 		//---------update mesh----------
 		if (theta >= 0.001 || (counter <= 20 && (pretheta - theta) >= 0.01))
@@ -127,7 +128,7 @@ int main(int argc, char** argv)
 		if (!mesh.is_boundary(vit))
 		{
 			interV.push_back(vit.idx());
-			inter_p_r_(vit.idx()) = count++;
+			interVidx(vit.idx()) = count++;
 		}
 		else
 		{
@@ -145,86 +146,33 @@ int main(int argc, char** argv)
 	std::cout << "初始最大误差： " << theta << std::endl;
 	std::cout << "初始平均误差： " << cal_error(vertices_mat, faces_mat, angle_mat, 0) << std::endl;
 
-	// Input vertices and faces
-	auto points = vtkSmartPointer<vtkPoints>::New();
-	for (auto vit : mesh.vertices())
-		points->InsertNextPoint(mesh.position(vit).data());
-	auto faces = vtkSmartPointer <vtkCellArray>::New();
-	for (auto fit : mesh.faces())
-	{
-		auto triangle = vtkSmartPointer<vtkTriangle>::New();
-		int idx = 0;
-		for (auto fvit : mesh.vertices(fit))
-			triangle->GetPointIds()->SetId(idx++, fvit.idx());
-		faces->InsertNextCell(triangle);
-	}
-
-	//Assign the pieces to the vtkPolyData.
-	auto polydata = vtkSmartPointer<vtkPolyData>::New();
-	polydata->SetPoints(points);
-	polydata->SetPolys(faces);
-
-	//Build color look up table
-	ctf = vtkSmartPointer<vtkColorTransferFunction>::New();
-	ctf->SetColorSpaceToHSV();
-	ctf->AddRGBPoint(0.0, 0, 0, 1);
-	ctf->AddRGBPoint(0.25, 0, 1, 1);
-	ctf->AddRGBPoint(0.5, 0, 1, 0);
-	ctf->AddRGBPoint(0.75, 1, 1, 0);
-	ctf->AddRGBPoint(1.0, 1, 0, 0);
-	lut = vtkSmartPointer<vtkLookupTable>::New();
-	lut->SetNumberOfColors(256);
-	for (auto i = 0; i < lut->GetNumberOfColors(); ++i)
-	{
-		Eigen::Vector4d color;
-		ctf->GetColor(double(i) / lut->GetNumberOfColors(), color.data());
-		color(3) = 1.0;
-		lut->SetTableValue(i, color.data());
-	}
-	lut->Build();
-
-	//Color related setup
-	auto scalar = vtkSmartPointer<vtkDoubleArray>::New();
-	scalar->SetNumberOfComponents(1);
-	scalar->SetNumberOfTuples(vertices_mat.cols());
-	for (auto i = 0; i < angle_sum_.size(); ++i)
-	{
-		scalar->InsertTuple1(i, abs(2.0 * M_PI - angle_sum_(i)));
-	}
-
-	polydata->GetPointData()->SetScalars(scalar);
-	// Create a mapper and actor
-	auto mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-	mapper->SetInputData(polydata);
-	mapper->SetLookupTable(lut);
-	mapper->SetScalarRange(scalar->GetValueRange());
-	auto actor = vtkSmartPointer<vtkActor>::New();
-	actor->SetMapper(mapper);
-
-	// Create a renderer, render window, and interactor
-	auto renderer = vtkSmartPointer<vtkRenderer>::New();
+	//---------------可视化---------------
+	//创建窗口
 	auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
-	renderWindow->AddRenderer(renderer);
-	auto renderWindowInteractor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
-	renderWindowInteractor->SetRenderWindow(renderWindow);
+	renderWindow->SetSize(800, 1000);
+	auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
+	visualize_mesh(renderer1, vertices_mat, faces_mat, angle_sum_);
+	renderer1->SetViewport(0.0, 0.0, 1.0, 1.0);
+	////视角设置
+	renderer1->ResetCamera();
+	renderWindow->AddRenderer(renderer1);
 
-	// Initialize must be called prior to creating timer events.
-	renderWindowInteractor->Initialize();
-	renderWindowInteractor->CreateRepeatingTimer(1000);
+	auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+	interactor->SetRenderWindow(renderWindow);
+	auto style = vtkInteractorStyleTrackballCamera::New();
+	interactor->SetInteractorStyle(style);
+	interactor->Initialize();
+	interactor->CreateRepeatingTimer(1000);
 
 	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
 	timeCallback->SetCallback(CallbackFunction);
-	timeCallback->SetClientData(polydata);
+	timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
 
-	renderWindowInteractor->AddObserver(vtkCommand::TimerEvent, timeCallback);
+	interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
 
-	// Add the actor to the scene
-	renderer->AddActor(actor);
-	renderer->SetBackground(0, 0, 0); // Background color white
-
-	// Render and interact
+	//开始
 	renderWindow->Render();
-	renderWindowInteractor->Start();
+	interactor->Start();
 
 	return EXIT_SUCCESS;
 }
@@ -304,7 +252,7 @@ void cal_angles(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::Mat
 	{
 		for (size_t i = 0; i < 3; ++i)
 		{
-			if (inter_p_r_(F(i, j)) != -1)
+			if (interVidx(F(i, j)) != -1)
 				angle_sum_(F(i, j)) += A(i, j);
 			else
 				angle_sum_(F(i, j)) = 2.0 * M_PI;
@@ -361,7 +309,7 @@ void cal_laplace(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eig
 			const int fv1 = fv[(vi + 1) % 3];
 			const int fv2 = fv[(vi + 2) % 3];
 
-			if (inter_p_r_(fv0) != -1)
+			if (interVidx(fv0) != -1)
 			{
 				areas(fv0) += area;
 				triple.push_back(Eigen::Triplet<float>(fv0, fv0, 1.0f / std::tan(ca[(vi + 1) % 3]) + 1.0f / std::tan(ca[(vi + 2) % 3])));
@@ -445,7 +393,7 @@ void cal_least_norm(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const 
 
 			sum_angle(fv[i]) += A(i, fit);
 			//判断顶点fv是否为内部顶点，边界顶点不参与计算
-			if (inter_p_r_(fv[(i + 1) % 3]) != -1)
+			if (interVidx(fv[(i + 1) % 3]) != -1)
 			{
 				//对vp求偏微分的系数
 				Eigen::Vector3f v11 = (p0 - p1) / (tan(ca[i]) * length(i) * length(i));
@@ -453,12 +401,12 @@ void cal_least_norm(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const 
 				Eigen::Vector3f v10 = (p0 - p2) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v11;
 				for (int j = 0; j < 3; ++j)
 				{
-					if (v11[j]) triple.push_back(Eigen::Triplet<float>(inter_p_r_(fv[(i + 1) % 3]), fv[(i + 1) % 3] * 3 + j, v11[j]));
-					if (v10[j]) triple.push_back(Eigen::Triplet<float>(inter_p_r_(fv[(i + 1) % 3]), fv[i] * 3 + j, v10[j]));
+					if (v11[j]) triple.push_back(Eigen::Triplet<float>(interVidx(fv[(i + 1) % 3]), fv[(i + 1) % 3] * 3 + j, v11[j]));
+					if (v10[j]) triple.push_back(Eigen::Triplet<float>(interVidx(fv[(i + 1) % 3]), fv[i] * 3 + j, v10[j]));
 				}
 			}
 
-			if (inter_p_r_(fv[(i + 2) % 3]) != -1)
+			if (interVidx(fv[(i + 2) % 3]) != -1)
 			{
 				//对vp求偏微分的系数
 				Eigen::Vector3f v22 = (p0 - p2) / (tan(ca[i]) * length((i + 2) % 3) * length((i + 2) % 3));
@@ -466,8 +414,8 @@ void cal_least_norm(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const 
 				Eigen::Vector3f v20 = (p0 - p1) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v22;
 				for (int j = 0; j < 3; ++j)
 				{
-					if (v22[j]) triple.push_back(Eigen::Triplet<float>(inter_p_r_(fv[(i + 2) % 3]), fv[(i + 2) % 3] * 3 + j, v22[j]));
-					if (v20[j]) triple.push_back(Eigen::Triplet<float>(inter_p_r_(fv[(i + 2) % 3]), fv[i] * 3 + j, v20[j]));
+					if (v22[j]) triple.push_back(Eigen::Triplet<float>(interVidx(fv[(i + 2) % 3]), fv[(i + 2) % 3] * 3 + j, v22[j]));
+					if (v20[j]) triple.push_back(Eigen::Triplet<float>(interVidx(fv[(i + 2) % 3]), fv[i] * 3 + j, v20[j]));
 				}
 			}
 		}
@@ -494,3 +442,70 @@ void cal_least_norm(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const 
 	N.setFromTriplets(triple.begin(), triple.end());
 }
 
+void matrix2vtk(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, vtkPolyData* P)
+{
+	auto points = vtkSmartPointer<vtkPoints>::New();
+	for (int i = 0; i < V.cols(); ++i)
+		points->InsertNextPoint(V.col(i).data());
+
+	auto faces = vtkSmartPointer <vtkCellArray>::New();
+	for (int i = 0; i < F.cols(); ++i)
+	{
+		auto triangle = vtkSmartPointer<vtkTriangle>::New();
+		for (int j = 0; j < 3; ++j)
+			triangle->GetPointIds()->SetId(j, F(j, i));
+		faces->InsertNextCell(triangle);
+	}
+	P->SetPoints(points);
+	P->SetPolys(faces);
+}
+
+void MakeLUT(vtkFloatArray* Scalar, vtkLookupTable* LUT)
+{
+	auto ctf = vtkSmartPointer<vtkColorTransferFunction>::New();
+	ctf->SetColorSpaceToHSV();
+	ctf->AddRGBPoint(0.0, 0, 0, 1);
+	ctf->AddRGBPoint(0.25, 0, 1, 1);
+	ctf->AddRGBPoint(0.5, 0, 1, 0);
+	ctf->AddRGBPoint(0.75, 1, 1, 0);
+	ctf->AddRGBPoint(1.0, 1, 0, 0);
+
+	LUT->SetNumberOfColors(256);
+	for (auto i = 0; i < LUT->GetNumberOfColors(); ++i)
+	{
+		Eigen::Vector4d color;
+		ctf->GetColor(double(i) / LUT->GetNumberOfColors(), color.data());
+		color(3) = 1.0;
+		LUT->SetTableValue(i, color.data());
+	}
+	LUT->Build();
+}
+
+void visualize_mesh(vtkRenderer* Renderer, const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::VectorXf& angles)
+{
+	//生成网格
+	auto P = vtkSmartPointer<vtkPolyData>::New();
+	matrix2vtk(V, F, P);
+
+	auto scalar = vtkSmartPointer<vtkFloatArray>::New();
+	scalar->SetNumberOfComponents(1);
+	scalar->SetNumberOfTuples(V.cols());
+	for (auto i = 0; i < angles.size(); ++i)
+	{
+		scalar->InsertTuple1(i, abs(2.0f * M_PI - angles(i)));
+	}
+	P->GetPointData()->SetScalars(scalar);
+
+	auto lut = vtkSmartPointer<vtkLookupTable>::New();
+	MakeLUT(scalar, lut);
+	//网格及法向渲染器
+	auto polyMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+	polyMapper->SetInputData(P);
+	polyMapper->SetLookupTable(lut);
+	polyMapper->SetScalarRange(scalar->GetValueRange()[0], scalar->GetValueRange()[1]);
+
+	auto polyActor = vtkSmartPointer<vtkActor>::New();
+	polyActor->SetMapper(polyMapper);
+	polyActor->GetProperty()->SetDiffuseColor(1, 1, 1);
+	Renderer->AddActor(polyActor);
+}

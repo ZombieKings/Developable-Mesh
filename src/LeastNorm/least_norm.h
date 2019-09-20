@@ -28,6 +28,7 @@
 #include <vtkPolyDataMapper.h>
 #include <vtkTriangle.h>
 #include <vtkCellArray.h>
+#include <vtkFloatArray.h>
 #include <vtkDoubleArray.h>
 
 #include <vtksys/SystemTools.hxx>
@@ -49,3 +50,7 @@ double cal_error(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eig
 
 void cal_laplace(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& A, Eigen::SparseMatrix<float>& L, Eigen::MatrixX3f& b);
 void cal_least_norm(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& A, Eigen::SparseMatrix<float>& N, Eigen::VectorXf& b);
+
+void matrix2vtk(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, vtkPolyData* P);
+void MakeLUT(vtkFloatArray* Scalar, vtkLookupTable* LUT);
+void visualize_mesh(vtkRenderer* Renderer, const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::VectorXf& angles);
