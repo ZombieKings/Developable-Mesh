@@ -1,7 +1,7 @@
 #include "newtonMethod.h"
 
-#define WEIGHT1 1.0
-#define WEIGHT2 0.1
+#define w1 1.0
+#define w2 0.1
 #define TAU 0.25
 
 int main(int argc, char** argv)
@@ -150,7 +150,7 @@ void BuildCoeffMatrix(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, cons
 		const Eigen::Vector3i& fv = F.col(fi);
 		for (size_t vi = 0; vi < 3; ++vi)
 		{
-			triA.push_back(Eigen::Triplet<float>(fv[vi], fv[vi], WEIGHT1 + WEIGHT2));
+			triA.push_back(Eigen::Triplet<float>(fv[vi], fv[vi], w1 + w2));
 			triA.push_back(Eigen::Triplet<float>(fv[vi], fv[(vi + 1) % 3], -0.5));
 			triA.push_back(Eigen::Triplet<float>(fv[vi], fv[(vi + 2) % 3], -0.5));
 		}

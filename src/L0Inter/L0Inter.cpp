@@ -2,16 +2,28 @@
 
 int main(int argc, char** argv)
 {
+	if (argc > 2)
+	{
+		lambda = atof(argv[2]);
+		beta = lambda * 2;
+		if(argc > 3)
+		{
+			std::cout << argv[3] << std::endl;
+			std::cout << argv[4] << std::endl;
+			std::cout << argv[5] << std::endl;
+
+			w1 = atof(argv[3]);
+			w2 = atof(argv[4]);
+			w3 = atof(argv[5]);
+		}
+	}
 	surface_mesh::Surface_mesh mesh;
-	if (!mesh.read("3D_p0.off"))
+	if (!mesh.read(argv[1]))
 	{
 		std::cout << "Load failed!" << std::endl;
 	}
 
 	//收集内部顶点下标
-	std::vector<int> interV;
-	std::vector<int> boundV;
-	Eigen::VectorXi interVidx;
 	interVidx.resize(mesh.n_vertices());
 	memset(interVidx.data(), -1, sizeof(int) * interVidx.size());
 	int count = 0;
@@ -27,75 +39,32 @@ int main(int argc, char** argv)
 			boundV.push_back(vit.idx());
 		}
 	}
-	int inter_num = interV.size();
-
-	Eigen::Matrix3Xf matV;
-	Eigen::Matrix3Xi matF;
 	mesh2matrix(mesh, matV, matF);
-
-	Eigen::VectorXf vAngles;
-	Eigen::Matrix3Xf mAngles;
-	Eigen::VectorXf areas;
 	cal_angles_and_areas(matV, matF, boundV, mAngles, vAngles, areas);
-
-	Eigen::VectorXf h;
-	cal_H(vAngles, lambda / beta, h);
-
-	std::vector<Eigen::Triplet<float>> triA;
-	cal_Gaussian_tri(matV, matF, mAngles, interVidx, triA);
-	cal_laplace_tri(matV, matF, mAngles, areas, inter_num, interVidx, triA);
-	cal_interpolation_tri(boundV, inter_num * 4, triA);
-
-	Eigen::SparseMatrix<float> A(interV.size() * 4 + boundV.size() * 3, matV.cols() * 3);
-	A.setFromTriplets(triA.begin(), triA.end());
-	Eigen::VectorXf b;
-	cal_rhs(matV, A, interV, boundV, h, vAngles, b);
-
-	//std::cout << b << std::endl;
-	Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>> solver;
-	solver.compute((A.transpose() * A).eval());
-
-	if (solver.info() != Eigen::Success)
-	{
-		std::cout << "solve fail" << std::endl;
-	}
-	Eigen::VectorXf temp = solver.solve(A.transpose() * b);
-	Eigen::Matrix3Xf resmatV = Eigen::Map<Eigen::Matrix3Xf>(temp.data(), 3, matV.cols());
-
-	Eigen::VectorXf resAngles;
-	Eigen::Matrix3Xf remAngles;
-	Eigen::VectorXf reareas;
-	cal_angles_and_areas(resmatV, matF, boundV, remAngles, resAngles, reareas);
 
 	//---------------可视化---------------
 	//创建窗口
 	auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
-	renderWindow->SetSize(1400, 800);
-
-	////---------------原始网格及法向可视化---------------
+	renderWindow->SetSize(800, 1000);
 	auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
 	visualize_mesh(renderer1, matV, matF, vAngles);
-	renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
+	renderer1->SetViewport(0.0, 0.0, 1.0, 1.0);
 	////视角设置
-	//renderer1->GetActiveCamera()->SetPosition(-1, 0, 0);
-	//renderer1->GetActiveCamera()->SetViewUp(0, 0, 1);
 	renderer1->ResetCamera();
 	renderWindow->AddRenderer(renderer1);
-
-	auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
-	visualize_mesh(renderer2, resmatV, matF, resAngles);
-	renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
-	////视角设置
-	//renderer2->GetActiveCamera()->SetPosition(-1, 0, 0);
-	//renderer2->GetActiveCamera()->SetViewUp(0, 0, 1);
-	renderer2->ResetCamera();
-	renderWindow->AddRenderer(renderer2);
 
 	auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
 	interactor->SetRenderWindow(renderWindow);
 	auto style = vtkInteractorStyleTrackballCamera::New();
 	interactor->SetInteractorStyle(style);
 	interactor->Initialize();
+	interactor->CreateRepeatingTimer(1000);
+
+	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	timeCallback->SetCallback(CallbackFunction);
+	timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
+
+	interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
 
 	//开始
 	renderWindow->Render();
@@ -133,14 +102,15 @@ void cal_H(const Eigen::VectorXf& vAngles, float threshold, Eigen::VectorXf& h)
 {
 	h.resize(vAngles.size());
 	for (int i = 0; i < vAngles.size(); ++i)
-		h(i) = (2.0f * M_PI - vAngles(i)) <= threshold ? 0 : (2.0f * M_PI - vAngles(i));
+		h(i) = (2.0f * M_PI - vAngles(i)) * (2.0f * M_PI - vAngles(i)) <= threshold ? 0 : (2.0f * M_PI - vAngles(i));
 }
 
-void cal_angles_and_areas(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const std::vector<int>& boundIdx, Eigen::Matrix3Xf& mAngles, Eigen::VectorXf& vAngles, Eigen::VectorXf& areas)
+void cal_angles_and_areas(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const std::vector<int>& boundIdx, Eigen::Matrix3Xf& matAngles, Eigen::VectorXf& vecAngles, Eigen::VectorXf& areas)
 {
-	mAngles.resize(3, F.cols());
-	vAngles.resize(V.cols());
-	vAngles.setZero();
+	matAngles.resize(3, F.cols());
+	matAngles.setZero();
+	vecAngles.resize(V.cols());
+	vecAngles.setZero();
 	areas.resize(V.cols());
 	areas.setZero();
 	for (int f = 0; f < F.cols(); ++f)
@@ -157,14 +127,14 @@ void cal_angles_and_areas(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, 
 			const Eigen::Vector3f& p1 = V.col(fv[(vi + 1) % 3]);
 			const Eigen::Vector3f& p2 = V.col(fv[(vi + 2) % 3]);
 			const float angle = std::acos(std::max(-1.0f, std::min(1.0f, (p1 - p0).normalized().dot((p2 - p0).normalized()))));
-			mAngles(vi, f) = angle;
-			vAngles(F(vi, f)) += angle;
+			matAngles(vi, f) = angle;
+			vecAngles(F(vi, f)) += angle;
 		}
 	}
 
 	for (size_t i = 0; i < boundIdx.size(); ++i)
 	{
-		vAngles(boundIdx[i]) = 2.0f * M_PI;
+		vecAngles(boundIdx[i]) = 2.0f * M_PI;
 	}
 }
 
@@ -203,8 +173,8 @@ void cal_Gaussian_tri(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, cons
 				Eigen::Vector3f v10 = (p0 - p2) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v11;
 				for (int j = 0; j < 3; ++j)
 				{
-					if (v11[j]) triple.push_back(Eigen::Triplet<float>(interIdx(fv[(i + 1) % 3]), fv[(i + 1) % 3] * 3 + j, beta * WEIGHT1 * v11[j]));
-					if (v10[j]) triple.push_back(Eigen::Triplet<float>(interIdx(fv[(i + 1) % 3]), fv[i] * 3 + j, beta * WEIGHT1 * v10[j]));
+					if (v11[j]) triple.push_back(Eigen::Triplet<float>(interIdx(fv[(i + 1) % 3]), fv[(i + 1) % 3] * 3 + j, beta * w1 * v11[j]));
+					if (v10[j]) triple.push_back(Eigen::Triplet<float>(interIdx(fv[(i + 1) % 3]), fv[i] * 3 + j, beta * w1 * v10[j]));
 				}
 			}
 
@@ -216,8 +186,8 @@ void cal_Gaussian_tri(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, cons
 				Eigen::Vector3f v20 = (p0 - p1) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v22;
 				for (int j = 0; j < 3; ++j)
 				{
-					if (v22[j]) triple.push_back(Eigen::Triplet<float>(interIdx(fv[(i + 2) % 3]), fv[(i + 2) % 3] * 3 + j, beta * WEIGHT1 * v22[j]));
-					if (v20[j]) triple.push_back(Eigen::Triplet<float>(interIdx(fv[(i + 2) % 3]), fv[i] * 3 + j, beta * WEIGHT1 * v20[j]));
+					if (v22[j]) triple.push_back(Eigen::Triplet<float>(interIdx(fv[(i + 2) % 3]), fv[(i + 2) % 3] * 3 + j, beta * w1 * v22[j]));
+					if (v20[j]) triple.push_back(Eigen::Triplet<float>(interIdx(fv[(i + 2) % 3]), fv[i] * 3 + j, beta * w1 * v20[j]));
 				}
 			}
 		}
@@ -237,9 +207,9 @@ void cal_laplace_tri(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const
 			const int fv2 = fv[(vi + 2) % 3];
 			if (interIdx(fv0) != -1)
 			{
-				dcoeff(triple, num + interIdx(fv0) * 3, fv0 * 3, WEIGHT2 * (1.0f / std::tan(ca[(vi + 1) % 3]) + 1.0f / std::tan(ca[(vi + 2) % 3])) / (2.0f * areas(fv0)));
-				dcoeff(triple, num + interIdx(fv0) * 3, fv1 * 3, -WEIGHT2 / std::tan(ca[(vi + 2) % 3]) / (2.0f * areas(fv0)));
-				dcoeff(triple, num + interIdx(fv0) * 3, fv2 * 3, -WEIGHT2 / std::tan(ca[(vi + 1) % 3]) / (2.0f * areas(fv0)));
+				dcoeff(triple, num + interIdx(fv0) * 3, fv0 * 3, w2 * (1.0f / std::tan(ca[(vi + 1) % 3]) + 1.0f / std::tan(ca[(vi + 2) % 3])) / (2.0f * areas(fv0)));
+				dcoeff(triple, num + interIdx(fv0) * 3, fv1 * 3, -w2 / std::tan(ca[(vi + 2) % 3]) / (2.0f * areas(fv0)));
+				dcoeff(triple, num + interIdx(fv0) * 3, fv2 * 3, -w2 / std::tan(ca[(vi + 1) % 3]) / (2.0f * areas(fv0)));
 			}
 		}
 	}
@@ -249,11 +219,11 @@ void cal_interpolation_tri(std::vector<int>& anchor, int row, std::vector<Eigen:
 {
 	for (size_t i = 0; i < anchor.size(); ++i)
 	{
-		dcoeff(triple, row + i * 3, anchor[i] * 3, WEIGHT3);
+		dcoeff(triple, row + i * 3, anchor[i] * 3, w3);
 	}
 }
 
-void cal_rhs(const Eigen::Matrix3Xf& V, const Eigen::MatrixXf& A, const std::vector<int>& interIdx, const std::vector<int>& boundIdx, const Eigen::VectorXf& h, const Eigen::VectorXf& vAngles, Eigen::VectorXf& rhb)
+void cal_rhs(const Eigen::Matrix3Xf& V, const Eigen::MatrixXf& A, const std::vector<int>& interIdx, const std::vector<int>& boundIdx, const Eigen::VectorXf& h, Eigen::VectorXf& rhb)
 {
 	rhb.resize(interIdx.size() * 4 + boundIdx.size() * 3);
 	rhb.setZero();
@@ -271,7 +241,7 @@ void cal_rhs(const Eigen::Matrix3Xf& V, const Eigen::MatrixXf& A, const std::vec
 
 	for (size_t i = 0; i < boundIdx.size(); ++i)
 	{
-		srhs(rhb, WEIGHT3 * V.col(boundIdx[i]), interIdx.size() * 4 + i * 3);
+		srhs(rhb, w3 * V.col(boundIdx[i]), interIdx.size() * 4 + i * 3);
 	}
 }
 
@@ -282,7 +252,7 @@ double cal_error(const Eigen::VectorXf& vAngles, const std::vector<int>& interId
 	{
 		error += 2.0 * M_PI - vAngles(interIdx[i]);
 	}
-	return error;
+	return (error / float(interIdx.size()));
 }
 
 void matrix2vtk(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, vtkPolyData* P)
@@ -351,4 +321,65 @@ void visualize_mesh(vtkRenderer* Renderer, const Eigen::Matrix3Xf& V, const Eige
 	polyActor->SetMapper(polyMapper);
 	polyActor->GetProperty()->SetDiffuseColor(1, 1, 1);
 	Renderer->AddActor(polyActor);
+}
+
+void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData))
+{
+	if (beta < MAXBETA && counter < 50)
+	{
+		Eigen::VectorXf h;
+		cal_H(vAngles, lambda / beta, h);
+
+		std::vector<Eigen::Triplet<float>> triA;
+		cal_Gaussian_tri(matV, matF, mAngles, interVidx, triA);
+		cal_laplace_tri(matV, matF, mAngles, areas, interV.size(), interVidx, triA);
+		cal_interpolation_tri(boundV, interV.size() * 4, triA);
+
+		Eigen::SparseMatrix<float> A(interV.size() * 4 + boundV.size() * 3, matV.cols() * 3);
+		A.setFromTriplets(triA.begin(), triA.end());
+
+		Eigen::VectorXf b;
+		cal_rhs(matV, A, interV, boundV, h, b);
+
+		Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>> solver;
+		solver.compute((A.transpose() * A).eval());
+
+		if (solver.info() != Eigen::Success)
+		{
+			std::cout << "solve fail" << std::endl;
+		}
+		Eigen::VectorXf temp = solver.solve((A.transpose() * b).eval());
+		matV = Eigen::Map<Eigen::Matrix3Xf>(temp.data(), 3, matV.cols());
+
+		//update angle
+		cal_angles_and_areas(matV, matF, boundV, mAngles, vAngles, areas);
+
+		counter++;
+		beta *= KAP;
+
+		std::cout << "第" << counter << "次迭代的" << "GuaErr: " << cal_error(vAngles, interV) << std::endl;
+
+		auto scalar = vtkSmartPointer<vtkDoubleArray>::New();
+		scalar->SetNumberOfComponents(1);
+		scalar->SetNumberOfTuples(matV.cols());
+		for (auto i = 0; i < vAngles.size(); ++i)
+		{
+			scalar->InsertTuple1(i, abs(2.0 * M_PI - vAngles(i)));
+		}
+
+		auto polydata = static_cast<vtkPolyData*>(clientData);
+		auto* iren = static_cast<vtkRenderWindowInteractor*>(caller);
+
+		auto points = vtkSmartPointer<vtkPoints>::New();
+		for (int i = 0; i < matV.cols(); ++i)
+		{
+			points->InsertNextPoint(matV.col(i).data());
+		}
+		polydata->SetPoints(points);
+		polydata->GetPointData()->SetScalars(scalar);
+		polydata->Modified();;
+
+		iren->Render();
+	}
+
 }

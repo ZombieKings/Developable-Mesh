@@ -46,15 +46,27 @@
 #include <vtkLookupTable.h>
 #include <vtkColorTransferFunction.h>
 
-#define WEIGHT1 10.0f
-#define WEIGHT2 0.1f
-#define WEIGHT3 1.0f
+#define KAP 2
+#define MAXBETA 1e5
 
-#define KAI 2;
-#define MAXBETA 1e5;
+float w1 = 10.0f;
+float w2 = 1.0f;
+float w3 = 1.0f;
 
-float lambda = 0.00001f;
-float beta = 0.002f;
+float lambda = 0.0000015;
+float beta = 0.000003;
+
+std::vector<int> interV;
+std::vector<int> boundV;
+Eigen::VectorXi interVidx;
+Eigen::Matrix3Xi matF;
+
+Eigen::Matrix3Xf matV;
+Eigen::VectorXf vAngles;
+Eigen::Matrix3Xf mAngles;
+Eigen::VectorXf areas;
+
+int counter = 0;
 
 inline bool scoeff(std::vector<Eigen::Triplet<float>>& target_matrix, const Eigen::Vector3f& input_vector, size_t row_, size_t col_)
 {
@@ -68,22 +80,24 @@ inline bool dcoeff(std::vector<Eigen::Triplet<float>>& target_matrix, size_t row
 	for (size_t i = 0; i < 3; ++i)
 		target_matrix.push_back(Eigen::Triplet <float>(row_ + i, col_ + i, val));
 	return true;
+
 }
 inline bool srhs(Eigen::VectorXf& b, const Eigen::Vector3f& input_vector, size_t idx)
 {
 	for (size_t i = 0; i < 3; ++i)
 		b(idx + i) += input_vector[i];
 	return true;
+
 }
 
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xf& vertices_mat, Eigen::Matrix3Xi& faces_mat);
 
 void cal_H(const Eigen::VectorXf& vAngles, float threshold, Eigen::VectorXf& h);
-void cal_angles_and_areas(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const std::vector<int>& boundIdx, Eigen::Matrix3Xf& mAngles, Eigen::VectorXf& vAngles, Eigen::VectorXf& areas);
+void cal_angles_and_areas(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const std::vector<int>& boundIdx, Eigen::Matrix3Xf& matAngles, Eigen::VectorXf& vecAngles, Eigen::VectorXf& areas);
 void cal_Gaussian_tri(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& angles, const Eigen::VectorXi& interIdx, std::vector<Eigen::Triplet<float>>& triple);
 void cal_laplace_tri(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& angles, const Eigen::VectorXf& areas, int num, const Eigen::VectorXi& interIdx, std::vector<Eigen::Triplet<float>>& triple);
 void cal_interpolation_tri(std::vector<int>& anchor, int row, std::vector<Eigen::Triplet<float>>& triple);
-void cal_rhs(const Eigen::Matrix3Xf& V, const Eigen::MatrixXf& A, const std::vector<int>& interIdx, const std::vector<int>& boundIdx, const Eigen::VectorXf& h, const Eigen::VectorXf& vAngles, Eigen::VectorXf& rhb);
+void cal_rhs(const Eigen::Matrix3Xf& V, const Eigen::MatrixXf& A, const std::vector<int>& interIdx, const std::vector<int>& boundIdx, const Eigen::VectorXf& h, Eigen::VectorXf& rhb);
 double cal_error(const Eigen::VectorXf& vAngles, const std::vector<int>& interIdx);
 
 void matrix2vtk(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, vtkPolyData* P);
