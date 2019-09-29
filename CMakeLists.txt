@@ -30,13 +30,19 @@ target_link_libraries(L0Interpolation optimized "$ENV{Surface_Mesh_DIR}/lib/surf
 target_link_libraries(L0Interpolation Eigen3::Eigen)
 target_link_libraries(L0Interpolation ${VTK_LIBRARIES})
 
+add_executable(L1Interpolation "src/L1Inter/L1Inter.cpp" "src/L1Inter/L1Inter.h")
+target_link_libraries(L1Interpolation debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(L1Interpolation optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(L1Interpolation Eigen3::Eigen)
+target_link_libraries(L1Interpolation ${VTK_LIBRARIES})
+target_link_libraries(L1Interpolation debug "$ENV{Alglib_DIR}/lib/alglib_debug.lib" )
+target_link_libraries(L1Interpolation optimized  "$ENV{Alglib_DIR}/lib/alglib_release.lib")
+
 add_executable(Least_Norm "src/LeastNorm/least_norm.cpp" "src/LeastNorm/least_norm.h")
 target_link_libraries(Least_Norm debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
 target_link_libraries(Least_Norm optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
 target_link_libraries(Least_Norm Eigen3::Eigen)
 target_link_libraries(Least_Norm ${VTK_LIBRARIES})
-target_link_libraries(Least_Norm debug "$ENV{Alglib_DIR}/lib/alglib_debug.lib" )
-target_link_libraries(Least_Norm optimized  "$ENV{Alglib_DIR}/lib/alglib_release.lib")
 
 add_executable(NewtonMethod "src/NewtonMethod/newtonMethod.cpp" "src/NewtonMethod/newtonMethod.h")
 target_link_libraries(NewtonMethod debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
@@ -55,6 +61,8 @@ target_link_libraries(TestObject debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_
 target_link_libraries(TestObject optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
 target_link_libraries(TestObject Eigen3::Eigen)
 target_link_libraries(TestObject ${VTK_LIBRARIES})
+target_link_libraries(TestObject debug "$ENV{Alglib_DIR}/lib/alglib_debug.lib" )
+target_link_libraries(TestObject optimized  "$ENV{Alglib_DIR}/lib/alglib_release.lib")
 
 add_executable(DifferMat "src/DifferentiationMatrix.cpp")
 target_link_libraries(DifferMat debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")

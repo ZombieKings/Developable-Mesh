@@ -3,11 +3,14 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+#include "optimization.h"
+
 #include <surface_mesh/Surface_mesh.h>
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+#include <Eigen/SparseCholesky>
 
 #include <vtkMath.h>
 #include <vtkSmartPointer.h>
@@ -91,7 +94,6 @@ inline bool srhs(Eigen::VectorXf& b, const Eigen::Vector3f& input_vector, size_t
 
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xf& vertices_mat, Eigen::Matrix3Xi& faces_mat);
 
-void cal_H(const Eigen::VectorXf& vAngles, float threshold, Eigen::VectorXf& h);
 void cal_angles_and_areas(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const std::vector<int>& boundIdx, Eigen::Matrix3Xf& matAngles, Eigen::VectorXf& vecAngles, Eigen::VectorXf& areas);
 void cal_Gaussian_tri(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& angles, const Eigen::VectorXi& interIdx, std::vector<Eigen::Triplet<float>>& triple);
 void cal_laplace_tri(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& angles, const Eigen::VectorXf& areas, int num, const Eigen::VectorXi& interIdx, std::vector<Eigen::Triplet<float>>& triple);

@@ -1,3 +1,6 @@
+// [9/27/2019]
+// 内角和的偏微分方程系数矩阵
+
 #include <iostream>
 
 #include <Eigen/Core>

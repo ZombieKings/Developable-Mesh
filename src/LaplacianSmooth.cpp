@@ -9,8 +9,6 @@
 
 #include <surface_mesh/Surface_mesh.h>
 
-#include "myVisualizer.h"
-
 using namespace surface_mesh;
 
 Eigen::VectorXf update_d_;
@@ -65,10 +63,6 @@ int main()
 	{
 		points[vit] = Point(resultM(vit.idx(), 0), resultM(vit.idx(), 1), resultM(vit.idx(), 2));
 	}
-
-	myVisualizer MV;
-	MV.LoadMesh(mesh);
-	MV.Run();
 
 	return 1;
 }
