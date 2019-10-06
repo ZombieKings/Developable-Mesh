@@ -11,7 +11,7 @@ include_directories("$ENV{Surface_Mesh_DIR}/include")
 #Eigen
 find_package(Eigen3 REQUIRED)
 
-#VTK
+#VTK5
 find_package(VTK REQUIRED)
 include(${VTK_USE_FILE})
 

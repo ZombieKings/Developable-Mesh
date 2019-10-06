@@ -69,7 +69,7 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 		else
 		{
 			//直接使用update_d更新矩阵
-			for (size_t r = 0; r < vertices_mat.cols(); ++r)
+			for (int r = 0; r < vertices_mat.cols(); ++r)
 			{
 				for (size_t i = 0; i < 3; ++i)
 				{
@@ -109,7 +109,7 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 int main(int argc, char** argv)
 {
 	Surface_mesh mesh;
-	if (!mesh.read("3D_p1.off"))
+	if (!mesh.read("3.off"))
 	{
 		std::cout << "Load failed!" << std::endl;
 	}
