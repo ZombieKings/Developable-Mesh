@@ -41,24 +41,26 @@
 #include <vtkVertexGlyphFilter.h>
 #include <vtkArrowSource.h>
 #include <vtkSphereSource.h>
+#include <vtkScalarBarActor.h>
 
 #include <vtkLookupTable.h>
 #include <vtkColorTransferFunction.h>
 
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xf& vertices_mat, Eigen::Matrix3Xi& faces_mat);
 
-void calAngles_Neigh(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::Matrix3Xf& A, Eigen::VectorXi& degrees);
-void BuildCoeffMatrix(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& angles, const Eigen::VectorXi& degrees, Eigen::SparseMatrix<float>& A);
-void BuildrhsB(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const std::vector<int>& bv, Eigen::VectorXf& b);
+void cal_angles(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const std::vector<int>& boundIdx, Eigen::Matrix3Xf& matAngles, Eigen::VectorXf& vecAngles);
+void calLaplace_Angles_Neigh(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::Matrix3Xf& A, Eigen::VectorXf& vecA, Eigen::Matrix3Xf& Lpos, Eigen::VectorXf& degrees);
+void calGradient(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& matAngles, const Eigen::VectorXi& interIdx, Eigen::VectorXf& Gradient);
+void BuildCoeffMatrix(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& angles, const Eigen::VectorXf& degrees, const Eigen::VectorXi& interIdx, Eigen::SparseMatrix<float>& A);
+void BuildrhsB(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& Lpos, const Eigen::VectorXf& degrees, const Eigen::VectorXi& interIdx, const Eigen::Matrix3Xf& oriV, Eigen::VectorXf& vecA, Eigen::VectorXf& b);
 
 void MakeLUT(vtkFloatArray* Scalar, vtkLookupTable* LUT);
-void MakeNormalGlyphs(vtkPolyData* src, vtkGlyph3D* glyph);
 void visualize_vertices(vtkRenderer* Renderer, const Eigen::Matrix3Xf& V);
 void visualize_mesh(vtkRenderer* Renderer, const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::VectorXf& angles);
 void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
 
 //将得到的系数向量导入系数矩阵中
-bool dcoeff(std::vector<Eigen::Triplet<float>>& target_matrix, const Eigen::Vector3f& input_vector, size_t row_, size_t col_)
+bool scoeff(std::vector<Eigen::Triplet<float>>& target_matrix, const Eigen::Vector3f& input_vector, size_t row_, size_t col_)
 {
 	for (size_t i = 0; i < 3; ++i)
 		if (input_vector[i])
@@ -66,7 +68,7 @@ bool dcoeff(std::vector<Eigen::Triplet<float>>& target_matrix, const Eigen::Vect
 	return true;
 }
 
-bool scoeff(std::vector<Eigen::Triplet<float>>& target_matrix, size_t row_, size_t col_, float val)
+bool dcoeff(std::vector<Eigen::Triplet<float>>& target_matrix, size_t row_, size_t col_, float val)
 {
 	for (size_t i = 0; i < 3; ++i)
 		target_matrix.push_back(Eigen::Triplet <float>(row_ + i, col_ + i, val));

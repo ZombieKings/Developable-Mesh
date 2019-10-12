@@ -1,5 +1,4 @@
 #include <iostream>
-#include <map>
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -26,7 +25,7 @@ void cal_laplace(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eig
 int main()
 {
 	Surface_mesh mesh;
-	mesh.read("2.off");
+	mesh.read("test10.off");
 
 	//收集内部顶点下标
 	interV.clear();
@@ -48,11 +47,12 @@ int main()
 	}
 
 	Surface_mesh target(mesh);
-	target.position(Surface_mesh::Vertex(target.n_vertices() / 2)).z += 20;
+	target.position(Surface_mesh::Vertex(target.n_vertices() / 2)).z += 5;
 
 	update_d_.resize(mesh.n_vertices() * 3);
 	update_d_.setZero();
-	update_d_(mesh.n_vertices() / 2 * 3 + 2) = 20;
+	update_d_(mesh.n_vertices() / 2 * 3 + 2) = 15;
+	update_d_(mesh.n_vertices() / 3 * 3 + 2) = 10;
 
 	Eigen::MatrixX3f resultM;
 	UpdateMesh(mesh, target, resultM);
@@ -63,6 +63,16 @@ int main()
 	{
 		points[vit] = Point(resultM(vit.idx(), 0), resultM(vit.idx(), 1), resultM(vit.idx(), 2));
 	}
+
+	UpdateMesh(mesh, target, resultM);
+
+	//update mesh
+	for (auto vit : mesh.vertices())
+	{
+		points[vit] = Point(resultM(vit.idx(), 0), resultM(vit.idx(), 1), resultM(vit.idx(), 2));
+	}
+
+	mesh.write("5.off");
 
 	return 1;
 }
