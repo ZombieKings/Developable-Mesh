@@ -50,11 +50,17 @@ target_link_libraries(NewtonMethod optimized "$ENV{Surface_Mesh_DIR}/lib/surface
 target_link_libraries(NewtonMethod Eigen3::Eigen)
 target_link_libraries(NewtonMethod ${VTK_LIBRARIES})
 
-add_executable(LaplacianSmooth "src/LaplacianSmooth.cpp")
-target_link_libraries(LaplacianSmooth debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
-target_link_libraries(LaplacianSmooth optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
-target_link_libraries(LaplacianSmooth Eigen3::Eigen)
-target_link_libraries(LaplacianSmooth ${VTK_LIBRARIES})
+add_executable(DifferOperators "src/DifferentialOperators.cpp" "src/DifferentialOperators.h")
+target_link_libraries(DifferOperators debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(DifferOperators optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(DifferOperators Eigen3::Eigen)
+target_link_libraries(DifferOperators ${VTK_LIBRARIES})
+
+add_executable(LaplasianSmooth "src/LaplasianSmooth.cpp")
+target_link_libraries(LaplasianSmooth debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(LaplasianSmooth optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(LaplasianSmooth Eigen3::Eigen)
+target_link_libraries(LaplasianSmooth ${VTK_LIBRARIES})
 
 add_executable(TestObject "src/test.cpp")
 target_link_libraries(TestObject debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
@@ -75,3 +81,5 @@ target_link_libraries(Temp optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_re
 target_link_libraries(Temp Eigen3::Eigen)
 target_link_libraries(Temp ${VTK_LIBRARIES})
 
+add_executable(MeshIO "src/mesh_io.cpp" "src/mesh_io.h")
+target_link_libraries(MeshIO Eigen3::Eigen)

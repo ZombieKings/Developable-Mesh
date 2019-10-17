@@ -265,3 +265,5 @@ __pycache__/
 /src/temp.cpp
 /src/mesh_tools.h
 /CMakeSettings.json
+/src/mesh_io.cpp
+/src/mesh_io.h

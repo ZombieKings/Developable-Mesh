@@ -1,3 +1,6 @@
+//------------------------------------------------------------------
+//注：解法器使用LDLT比QR快，但是需要剔除边界点对应的0部分，保证矩阵满秩
+//------------------------------------------------------------------
 #include "newtonMethod.h"
 
 #define w1 1.0f
@@ -23,9 +26,6 @@ int main(int argc, char** argv)
 		std::cout << "Laod failed!" << std::endl;
 	}
 
-	//std::vector<int> interV;
-	//std::vector<int> boundV;
-	//Eigen::VectorXi interVidx;
 	interVidx.resize(mesh.n_vertices());
 	memset(interVidx.data(), -1, sizeof(int) * interVidx.size());
 	int count = 0;
@@ -52,23 +52,23 @@ int main(int argc, char** argv)
 	//Eigen::Matrix3Xi matF;
 	//mesh2matrix(mesh, matV, matF);
 	//Eigen::Matrix3Xf oriV(matV);
-
+	//
 	//Eigen::Matrix3Xf angles;
 	//Eigen::VectorXf vangles;
 	//Eigen::VectorXf degrees;
 	//Eigen::Matrix3Xf Lpos;
 	//calLaplace_Angles_Neigh(matV, matF, angles, vangles, Lpos, degrees);
-
+	//
 	////std::cout << degrees << std::endl;
-
+	//
 	//Eigen::SparseMatrix<float> A;
 	//BuildCoeffMatrix(matV, matF, angles, degrees, interVidx, A);
 	//std::cout << A << std::endl;
-
+	//
 	//Eigen::VectorXf b;
 	//BuildrhsB(matV, matF, Lpos, degrees, interVidx, oriV, vangles, b);
 	//std::cout << b << std::endl;
-
+	//
 	//Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>> solver;
 	//solver.compute((A.transpose() * A).eval());
 	//Eigen::SparseQR<Eigen::SparseMatrix<float>, Eigen::COLAMDOrdering<int>> solver;
@@ -79,7 +79,7 @@ int main(int argc, char** argv)
 	//}
 	//Eigen::VectorXf temp = solver.solve(b);
 	//std::cout << temp << std::endl;
-
+	//
 	//Eigen::Matrix3Xf resV(matV);
 	//for (size_t i = 0; i < interV.size(); ++i)
 	//{
@@ -88,7 +88,7 @@ int main(int argc, char** argv)
 	//		resV(j, interV[i]) += TAU * temp(i * 3 + j);
 	//	}
 	//}
-
+	//
 	//Eigen::Matrix3Xf remA;
 	//Eigen::VectorXf reA;
 	//cal_angles(resV, matF, boundV, remA, reA);
@@ -148,18 +148,13 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 		Eigen::SimplicialLDLT< Eigen::SparseMatrix<float>> solver;
 		solver.compute(A.transpose() * A);
 
-		if (solver.info() != Eigen::Success)
-		{
+		if (solver.info() != Eigen::Success) 
 			std::cout << "solve fail" << std::endl;
-		}
+
 		Eigen::VectorXf temp = solver.solve(A.transpose() * b);
 		for (size_t i = 0; i < interV.size(); ++i)
-		{
 			for (int j = 0; j < 3; ++j)
-			{
 				matV(j, interV[i]) += TAU * temp(i * 3 + j);
-			}
-		}
 
 		temp(temp.size() - 1) = 0;
 		if (temp.norm() <= 1e-4)
@@ -171,36 +166,28 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 
 		double error = 0.0f;
 		for (size_t i = 0; i < interV.size(); ++i)
-		{
 			error += abs(reA(interV[i]) - 2.0 * M_PI);
-		}
-		std::cout << error << std::endl;
 
 		//update angle
 		auto scalar = vtkSmartPointer<vtkDoubleArray>::New();
 		scalar->SetNumberOfComponents(1);
 		scalar->SetNumberOfTuples(matV.cols());
 		for (auto i = 0; i < reA.size(); ++i)
-		{
 			scalar->InsertTuple1(i, abs(2.0 * M_PI - reA(i)));
-		}
 
 		auto polydata = static_cast<vtkPolyData*>(clientData);
 		auto* iren = static_cast<vtkRenderWindowInteractor*>(caller);
 
 		auto points = vtkSmartPointer<vtkPoints>::New();
 		for (int i = 0; i < matV.cols(); ++i)
-		{
 			points->InsertNextPoint(matV.col(i).data());
-		}
 		polydata->SetPoints(points);
 		polydata->GetPointData()->SetScalars(scalar);
-		polydata->Modified();;
+		polydata->Modified();; 
 
 		iren->Render();
 
-		it_conunter++;
-		std::cout << it_conunter << std::endl;
+		std::cout << "第" << it_conunter++ << "次迭代，整体误差： " << error << std::endl;
 	}
 }
 
@@ -425,15 +412,6 @@ void MakeLUT(vtkFloatArray* Scalar, vtkLookupTable* LUT)
 {
 	auto ctf = vtkSmartPointer<vtkColorTransferFunction>::New();
 	ctf->SetColorSpaceToHSV();
-	//ctf->AddRGBPoint(0.0, 0, 0, 1);
-	//ctf->AddRGBPoint(0.25, 0, 1, 1);
-	//ctf->AddRGBPoint(0.5, 0, 1, 0);
-	//ctf->AddRGBPoint(0.75, 1, 1, 0);
-	//ctf->AddRGBPoint(1.0, 1, 0, 0);
-
-	//ctf->AddRGBPoint(0.0, 0, 0, 0);
-	//ctf->AddRGBPoint(1.0, 1, 1, 1);
-
 	ctf->AddRGBPoint(0.0, 0.1, 0.3, 1);
 	ctf->AddRGBPoint(0.25, 0.55, 0.65, 1);
 	ctf->AddRGBPoint(0.5, 1, 1, 1);
@@ -455,9 +433,8 @@ void visualize_vertices(vtkRenderer* Renderer, const Eigen::Matrix3Xf& V)
 {
 	auto points = vtkSmartPointer<vtkPoints>::New();
 	for (int i = 0; i < V.cols(); ++i)
-	{
 		points->InsertNextPoint(V.col(i).data());
-	}
+
 	auto polydata = vtkSmartPointer<vtkPolyData>::New();
 	polydata->SetPoints(points);
 	auto pointsFilter = vtkSmartPointer<vtkVertexGlyphFilter>::New();
@@ -489,9 +466,7 @@ void visualize_mesh(vtkRenderer* Renderer, const Eigen::Matrix3Xf& V, const Eige
 	scalar->SetNumberOfComponents(1);
 	scalar->SetNumberOfTuples(V.cols());
 	for (auto i = 0; i < angles.size(); ++i)
-	{
 		scalar->InsertTuple1(i, abs(2.0f * M_PI - angles(i)));
-	}
 	P->GetPointData()->SetScalars(scalar);
 
 	auto lut = vtkSmartPointer<vtkLookupTable>::New();
