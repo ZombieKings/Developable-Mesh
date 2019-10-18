@@ -183,11 +183,14 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 			points->InsertNextPoint(matV.col(i).data());
 		polydata->SetPoints(points);
 		polydata->GetPointData()->SetScalars(scalar);
-		polydata->Modified();; 
+		polydata->Modified();;
 
 		iren->Render();
-
-		std::cout << "第" << it_conunter++ << "次迭代，整体误差： " << error << std::endl;
+		if (flag)
+			std::cout << "优化结束,共进行";
+		else
+			std::cout << "第";
+		std::cout << it_conunter++ << "次迭代，误差为： " << error << std::endl;
 	}
 }
 
