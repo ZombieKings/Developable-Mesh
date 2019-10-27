@@ -15,7 +15,7 @@ find_package(Eigen3 REQUIRED)
 find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
-#VTK5
+#VTK
 find_package(VTK REQUIRED)
 include(${VTK_USE_FILE})
 
@@ -88,7 +88,7 @@ target_link_libraries(Temp ${VTK_LIBRARIES})
 add_executable(MeshIO "src/mesh_io.cpp" "src/mesh_io.h")
 target_link_libraries(MeshIO Eigen3::Eigen)
 
-add_executable(opt_solver src/solver/func_opt.cpp src/solver/func_opt.h src/solver/newton_solver.cpp src/solver/newton_solver.h src/solver/residual_func.h)
+add_executable(opt_solver "src/solver/func_opt.cpp" "src/solver/func_opt.h" "src/solver/newton_solver.cpp" "src/solver/newton_solver.h" "src/solver/residual_func.h" "src/solver/main.cpp")
 target_link_libraries(opt_solver ${Boost_LIBRARIES})
 target_link_libraries(opt_solver Eigen3::Eigen)
 target_link_libraries(opt_solver debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")

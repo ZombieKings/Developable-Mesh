@@ -31,12 +31,22 @@ int main(int argc, char** argv)
 	Eigen::Matrix3Xi matF;
 	mesh2matrix(mesh, matV, matF);
 
-	MatrixType gradX;
-	MatrixType gradY;
-	MatrixType gradZ;
-	cal_grad_pos(matV, matF, gradX, gradY, gradZ);
+	//MatrixType gradX;
+	//MatrixType gradY;
+	//MatrixType gradZ;
+	//cal_grad_pos(matV, matF, gradX, gradY, gradZ);
 
-	std::cout << gradX << std::endl;
+	Eigen::SparseMatrix<DataType> L;
+	//cal_uni_laplace(matV, matF, L);
+
+	MatrixType matA;
+	cal_angles(matV, matF, matA);
+	cal_cot_laplace(matV, matF, matA, interVidx, L);
+	std::cout << L << std::endl;
+
+	//Eigen::SparseMatrix<DataType> G;
+	//cal_grad(matV, matF, G);
+	//std::cout << G << std::endl;
 	return 1;
 }
 
@@ -86,6 +96,7 @@ void cal_cot_laplace(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixTypeCo
 {
 	//计算固定边界的cot权拉普拉斯系数矩阵
 	std::vector<Tri> triple;
+	triple.reserve(F.cols() * 3 * 3);
 
 	Eigen::VectorXf areas;
 	areas.resize(V.cols());
@@ -146,6 +157,39 @@ void cal_uni_laplace(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, Eigen::Spars
 	}
 	L.resize(V.cols(), V.cols());
 	L.setFromTriplets(tripleL.begin(), tripleL.end());
+}
+
+void cal_grad(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, Eigen::SparseMatrix<DataType>& G)
+{
+	std::vector<Tri> tripleG;
+	tripleG.reserve(F.cols() * 3 * 4);
+	for (int i = 0; i < F.cols(); ++i)
+	{
+		const Eigen::Vector3i& fv = F.col(i);
+		
+		//三角形各边向量
+		const VectorType v21 = V.col(fv[2]) - V.col(fv[1]);
+		const VectorType v02 = V.col(fv[0]) - V.col(fv[2]);
+		const VectorType v10 = V.col(fv[1]) - V.col(fv[0]);
+		const VectorType n = v21.cross(v02);
+		const double dblA = n.norm();
+
+		VectorType B10 = n.normalized().cross(v10).normalized() * v10.norm() / dblA;
+		for (int j = 0; j < 3; ++j)
+		{
+			tripleG.push_back(Tri(i * 3 + j, fv[1], B10(j)));
+			tripleG.push_back(Tri(i * 3 + j, fv[0], -B10(j)));
+		}
+
+		VectorType B02 = n.normalized().cross(v02).normalized() * v02.norm() / dblA;
+		for (int j = 0; j < 3; ++j)
+		{
+			tripleG.push_back(Tri(i * 3 + j, fv[2], B02(j)));
+			tripleG.push_back(Tri(i * 3 + j, fv[0], -B02(j)));
+		}
+	}
+	G.resize(F.cols() * 3, V.cols());
+	G.setFromTriplets(tripleG.begin(), tripleG.end());
 }
 
 void cal_grad_pos(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixType& gradX, MatrixType& gradY, MatrixType& gradZ)

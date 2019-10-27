@@ -103,8 +103,8 @@ int main(int argc, char** argv)
 	visualize_mesh(renderer, matV, matF, vangles);
 	renderer->SetViewport(0.0, 0.0, 1.0, 1.0);
 	//ÊÓ½ÇÉèÖÃ
-	renderer->GetActiveCamera()->SetPosition(-1, 0, 0);
-	renderer->GetActiveCamera()->SetViewUp(0, 0, 1);
+	renderer->GetActiveCamera()->SetPosition(-1, 0, -1);
+	//renderer->GetActiveCamera()->SetViewUp(0, 0, 1);
 	renderer->ResetCamera();
 	renderWindow->AddRenderer(renderer);
 

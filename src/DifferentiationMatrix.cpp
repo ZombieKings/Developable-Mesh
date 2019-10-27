@@ -106,9 +106,9 @@ int cal_diff_mat(const Surface_mesh& mesh, Eigen::SparseMatrix<float>& D, Eigen:
 				for (int j = 0; j < 3; ++j)
 				{
 					if (v11[j])
-						triple.push_back(Eigen::Triplet<float>(interidx_re(index[(i + 1) % 3]), index[(i + 1) % 3] * 3 + j, v11[j]));
+						triple.push_back(Eigen::Triplet<float>(interidx_re(index[(i + 1) % 3]) * 3 + j, index[(i + 1) % 3] * 3 + j, v11[j]));
 					if (v10[j])
-						triple.push_back(Eigen::Triplet<float>(interidx_re(index[(i + 1) % 3]), index[i] * 3 + j, v10[j]));
+						triple.push_back(Eigen::Triplet<float>(interidx_re(index[(i + 1) % 3]) * 3 + j, index[i] * 3 + j, v10[j]));
 				}
 			}
 			if (interidx_re(index[(i + 2) % 3]) >= 0)
@@ -118,18 +118,18 @@ int cal_diff_mat(const Surface_mesh& mesh, Eigen::SparseMatrix<float>& D, Eigen:
 				for (int j = 0; j < 3; ++j)
 				{
 					if (v22[j])
-						triple.push_back(Eigen::Triplet<float>(interidx_re(index[(i + 2) % 3]), index[(i + 2) % 3] * 3 + j, v22[j]));
+						triple.push_back(Eigen::Triplet<float>(interidx_re(index[(i + 2) % 3]) * 3 + j, index[(i + 2) % 3] * 3 + j, v22[j]));
 					if (v20[j])
-						triple.push_back(Eigen::Triplet<float>(interidx_re(index[(i + 2) % 3]), index[i] * 3 + j, v20[j]));
+						triple.push_back(Eigen::Triplet<float>(interidx_re(index[(i + 2) % 3]) * 3 + j, index[i] * 3 + j, v20[j]));
 				}
 			}
 		}
 	}
 
-	D.resize(interidx.size(), mesh.n_vertices() * 3);
+	D.resize(mesh.n_vertices() * 3, mesh.n_vertices() * 3);
 	b.resize(interidx.size());
 
-	D.setFromTriplets(triple.begin(), triple.end());
+	D.setFromTriplets(triple.begin(), triple.end()); 
 	for (size_t i = 0; i < interidx.size(); ++i)
 	{
 		b(i) = angles(interidx[i]);
