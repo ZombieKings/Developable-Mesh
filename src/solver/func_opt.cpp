@@ -27,7 +27,7 @@ namespace func_opt
 		Vnum_ = mesh.n_vertices();
 		mesh2matrix(mesh, V_, F_);	
 
-		makeF2V(F_,Vnum_, F2V_);
+		cal_topo(F_,Vnum_, F2V_);
 		F2Vt_ = F2V_.transpose();
 
 		cal_grad(V_, F_, Grad_);
@@ -43,7 +43,7 @@ namespace func_opt
 
 	size_t my_function::dim(void) const
 	{
-		return V_.cols();
+		return Vnum_* 3;
 	}
 
 	int my_function::val(const double* x, double& v)
@@ -55,8 +55,9 @@ namespace func_opt
 		//高斯曲率1范数
 		for (size_t i = 0; i < interV_.size(); ++i)
 		{
-			const double k = vAngles_(interV_[i]) - 2.0 * M_PI;
-			v += w1_ * sqrt(k * k + eps_);
+			const double K(vAngles_(interV_[i]) - 2.0 * M_PI);
+			const double temp = normtype_ ? sqrt(K * K + eps_) : K * K / (K * K + eps_);
+			v += w1_ * temp;
 		}
 
 		//梯度坐标差
@@ -94,14 +95,18 @@ namespace func_opt
 		cal_angles_and_areas(curV, F_, boundV_, mAngles_, vAngles_, areas_);
 
 		Eigen::Map<VectorType> Gradient(g, Vnum_ * 3, 1);
+		Gradient.setZero();
 
 		//高斯曲率1范数的梯度
 		cal_gaussian_gradient(curV, F_, interVidx_, mAngles_, vAngles_, Gau_);
 		for (int i = 0; i < Gau_.outerSize(); ++i)
 		{
+			const double K(vAngles_(i / 3) - 2.0 * M_PI);
+			const double K2e(K * K + eps_);
+			const double temp = normtype_ ? K / sqrt(K2e) : 2 * K * eps_ / (K2e * K2e);
 			for (Eigen::SparseMatrix<DataType>::InnerIterator it(Gau_, i); it; ++it)
 			{
-				Gradient(i) += w1_ * it.value();
+				Gradient(it.row()) += w1_ * temp * it.value();
 			}
 		}
 
@@ -141,23 +146,14 @@ namespace func_opt
 		MatrixType curV = Eigen::Map<MatrixTypeConst>(x, 3, Vnum_);
 		cal_angles_and_areas(curV, F_, boundV_, mAngles_, vAngles_, areas_);
 
-		Eigen::Map<Eigen::VectorXd> Gradient(g, Vnum_ * 3, 1);
 		//高斯曲率1范数
 		for (size_t i = 0; i < interV_.size(); ++i)
 		{
-			const double k = vAngles_(interV_[i]) - 2.0 * M_PI;
-			v += w1_ * sqrt(k * k + eps_);
+			const double K(vAngles_(interV_[i]) - 2.0 * M_PI);
+			const double temp = normtype_ ? sqrt(K * K + eps_) : K * K / (K * K + eps_);
+			v += w1_ * temp;
 		}
-
-		cal_gaussian_gradient(curV, F_, interVidx_, mAngles_, vAngles_, Gau_);
-		for (int i = 0; i < Gau_.outerSize(); ++i)
-		{
-			for (Eigen::SparseMatrix<DataType>::InnerIterator it(Gau_, i); it; ++it)
-			{
-				Gradient(i) += w1_ * it.value();
-			}
-		}
-
+		
 		//梯度坐标差
 		cal_grad(curV, F_, Grad_);
 		Gradt_ = Grad_.transpose();
@@ -165,31 +161,30 @@ namespace func_opt
 		Eigen::VectorXd gradX(F2V_ * Grad_ * (curV.row(0).transpose()));
 		Eigen::VectorXd gradY(F2V_ * Grad_ * (curV.row(1).transpose()));
 		Eigen::VectorXd gradZ(F2V_ * Grad_ * (curV.row(2).transpose()));
-
 		v += w2_ * (gradX - preGradX_).squaredNorm();
 		v += w2_ * (gradY - preGradY_).squaredNorm();
 		v += w2_ * (gradZ - preGradZ_).squaredNorm();
 
+		Eigen::Map<Eigen::VectorXd> Gradient(g, Vnum_ * 3, 1);
+		Gradient.setZero();
+
+		//高斯曲率1范数的梯度
+		cal_gaussian_gradient(curV, F_, interVidx_, mAngles_, vAngles_, Gau_);
+		for (int i = 0; i < Gau_.outerSize(); ++i)
+		{
+			const double K(vAngles_(i / 3) - 2.0 * M_PI);
+			const double K2e(K * K + eps_);
+			const double temp = normtype_ ? K / sqrt(K2e) : 2 * K * eps_ / (K2e * K2e);
+			for (Eigen::SparseMatrix<DataType>::InnerIterator it(Gau_, i); it; ++it)
+			{
+				Gradient(it.row()) += w1_ * temp * it.value();
+			}
+		}
+
+		//梯度坐标差的梯度
 		Eigen::VectorXd tempX = Gradt_ * F2Vt_ * (gradX - preGradX_);
 		Eigen::VectorXd tempY = Gradt_ * F2Vt_ * (gradY - preGradY_);
 		Eigen::VectorXd tempZ = Gradt_ * F2Vt_ * (gradZ - preGradZ_);
-
-		//Eigen::SparseMatrix<DataType> Grad,Gradt;
-		//cal_grad(curV, F_, Grad);
-		//Gradt = Grad.transpose();
-
-		//Eigen::VectorXd gradX(Grad * (curV.row(0).transpose()));
-		//Eigen::VectorXd gradY(Grad * (curV.row(1).transpose()));
-		//Eigen::VectorXd gradZ(Grad * (curV.row(2).transpose()));
-
-		//v += w2_ * (gradX - preGradX_).squaredNorm();
-		//v += w2_ * (gradY - preGradY_).squaredNorm();
-		//v += w2_ * (gradZ - preGradZ_).squaredNorm();
-
-		//Eigen::VectorXd tempX = 2 * w2_ * Gradt * (gradX - preGradX_);
-		//Eigen::VectorXd tempY = 2 * w2_ * Gradt * (gradY - preGradY_);
-		//Eigen::VectorXd tempZ = 2 * w2_ * Gradt * (gradZ - preGradZ_);
-
 		for (int i = 0; i < curV.cols(); ++i)
 		{
 			Gradient(i * 3) += 2 * w2_ * tempX(i);
@@ -200,43 +195,69 @@ namespace func_opt
 		//边界项
 		for (int i = 0; i < boundV_.size(); ++i)
 		{
-			const PosVector temp = w3_* (curV.col(boundV_[i]) - V_.col(boundV_[i]));
-			v += temp.squaredNorm();
+			const PosVector temp = (curV.col(boundV_[i]) - V_.col(boundV_[i]));
+			v += w3_ * temp.squaredNorm();
 			for (int k = 0; k < 3; ++k)
-				Gradient(boundV_[i] * 3 + k) += 2 * temp(k);
+				Gradient(boundV_[i] * 3 + k) += 2 * w3_ * temp(k);
 		}
 
 		preGradX_ = gradX;
 		preGradY_ = gradY;
 		preGradZ_ = gradZ;
-		std::cout << Gradient;
+		//std::cout << Gradient << std::endl;
 		return 0;
 	}
 
 	int my_function::hes(const double* x, Eigen::SparseMatrix<double>& h)
 	{
 		std::vector<Tri> tripletH;
-		Eigen::SparseMatrix<DataType> Gaut = Gau_.transpose();
-		Eigen::SparseMatrix<DataType> GautGau = Gaut * Gau_;
-		h += GautGau;
-
-		Eigen::SparseMatrix<DataType> GtG = Gradt_ * Grad_;
-		h += 2 * w2_ * GtG;
-
-		Eigen::SparseMatrix<DataType> I;
-		I.resize(V_.cols(), V_.cols());
-		I.setIdentity();
-		h += 2 * w3_ * I;
-
-		h.resize(V_.cols(), V_.cols());
-
-		for (size_t i = 0; i < interV_.size(); ++i)
+		for (size_t i = 0; i < interV_.size(); i++)
 		{
-			const double k = vAngles_(interV_[i]) - 2.0 * M_PI;
-			const double k2e = k * k + eps_;
-			const double temp = w1_ * eps_ / sqrt(k2e * k2e * k2e);
-			Gau_.row(interV_[i]) *= temp;
+			const double K = vAngles_(interV_[i]) - 2.0 * M_PI;
+			const double K2e = (K * K + eps_);
+			const double temp = normtype_ ? eps_ / sqrt(K2e * K2e * K2e) : 2 * eps_ * (eps_ - 3 * K * K) / (K2e * K2e * K2e);
+
+			const VectorType& gc(Gau_.col(interV_[i]));
+			Eigen::MatrixXd H = w1_ * temp * gc * gc.transpose();
+
+			for (int j = 0; j < H.cols(); ++j)
+			{
+				for (int k = 0; k < H.rows(); ++k)
+				{
+					if (H(k, j) != 0)
+					{
+						tripletH.push_back(Tri(k, j, H(k, j)));
+					}
+				}
+			}
 		}
+
+		Eigen::SparseMatrix<DataType> GtG = Gradt_ * F2Vt_ * F2V_ * Grad_;
+		for (int i = 0; i < GtG.outerSize(); ++i)
+		{
+			for (Eigen::SparseMatrix<DataType>::InnerIterator it(GtG, i); it; ++it)
+			{
+				tripletH.push_back(Tri(it.row(), it.col(), 2 * w2_ * it.value()));
+			}
+		}
+
+		for (size_t i = 0; i < boundV_.size(); ++i)
+		{
+			tripletH.push_back(Tri(i * 3, i * 3, 2 * w3_));
+			tripletH.push_back(Tri(i * 3 + 1, i * 3 + 1, 2 * w3_));
+			tripletH.push_back(Tri(i * 3 + 2, i * 3 + 2, 2 * w3_));
+		}
+
+		h.resize(Vnum_ * 3, Vnum_ * 3);
+		h.setFromTriplets(tripletH.begin(), tripletH.end());
+		std::cout << h << std::endl;
+		//for (size_t i = 0; i < interV_.size(); ++i)
+		//{
+		//	const double k = vAngles_(interV_[i]) - 2.0 * M_PI;
+		//	const double k2e = k * k + eps_;
+		//	const double temp = w1_ * eps_ / sqrt(k2e * k2e * k2e);
+		//	Gau_.row(interV_[i]) *= temp;
+		//}
 
 		//if (h.nonZeros() == 0)
 		//{
@@ -300,8 +321,7 @@ namespace func_opt
 		}
 	}
 
-
-	void my_function::makeF2V(const Eigen::Matrix3Xi& F, int Vnum, Eigen::SparseMatrix<DataType>& F2V)
+	void my_function::cal_topo(const Eigen::Matrix3Xi& F, int Vnum, Eigen::SparseMatrix<DataType>& F2V)
 	{
 		std::vector<Tri> tripleF;
 		for (int i = 0; i < F.cols(); ++i)
@@ -388,24 +408,6 @@ namespace func_opt
 		G.setFromTriplets(tripleG.begin(), tripleG.end());
 	}
 
-	//void my_function::cal_grad_pos(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixType& gradXpos, MatrixType& gradYpos, MatrixType& gradZpos)
-	//{
-	//	cal_grad(V, F, Grad_);
-	//	Gradt_ = Grad_.transpose();
-
-	//	Eigen::VectorXd gradX(F2V_ * Grad_ * (V.row(0).transpose()));
-	//	Eigen::VectorXd gradY(F2V_ * Grad_ * (V.row(1).transpose()));
-	//	Eigen::VectorXd gradZ(F2V_ * Grad_ * (V.row(2).transpose()));
-
-	//	v += w2_ * (gradX - preGradX_).squaredNorm();
-	//	v += w2_ * (gradY - preGradY_).squaredNorm();
-	//	v += w2_ * (gradZ - preGradZ_).squaredNorm();
-
-	//	Eigen::VectorXd tempX = 2 * w2_ * Gradt_ * (gradX - preGradX_);
-	//	Eigen::VectorXd tempY = 2 * w2_ * Gradt_ * (gradY - preGradY_);
-	//	Eigen::VectorXd tempZ = 2 * w2_ * Gradt_ * (gradZ - preGradZ_);
-	//}
-
 	void my_function::cal_cot_laplace(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixTypeConst& A, const Eigen::VectorXi& interVidx, Eigen::SparseMatrix<DataType>& L)
 	{
 		//计算固定边界的cot权拉普拉斯系数矩阵
@@ -473,69 +475,6 @@ namespace func_opt
 		L.setFromTriplets(tripleL.begin(), tripleL.end());
 	}
 
-	//void my_function::cal_gaussian_gradient(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const VectorType& interVidx, const MatrixType& mAngles, const VectorType& vAngles, Eigen::VectorXd& grad)
-	//{
-	//	//高斯曲率1范数的梯度
-	//	for (int fit = 0; fit < F_.cols(); ++fit)
-	//	{
-	//		//记录当前面信息
-	//		const Eigen::Vector3i& fv = F_.col(fit);
-	//		const Eigen::Vector3d& ca = mAngles.col(fit);
-	//		Eigen::Matrix3d p;
-	//		for (int i = 0; i < 3; ++i)
-	//			p.col(i) = V.col(fv[i]);
-	//
-	//		//计算各角及各边长
-	//		Eigen::Vector3d length;
-	//		for (int i = 0; i < 3; ++i)
-	//		{
-	//			length(i) = (p.col((i + 1) % 3) - p.col(i)).norm();
-	//		}
-	//
-	//		//对每个顶点计算相关系数
-	//		for (int i = 0; i < 3; ++i)
-	//		{
-	//			//Mix area
-	//			const Eigen::Vector3d& p0 = p.col(i);
-	//			const Eigen::Vector3d& p1 = p.col((i + 1) % 3);
-	//			const Eigen::Vector3d& p2 = p.col((i + 2) % 3);
-	//
-	//			//判断顶点fv是否为内部顶点，边界顶点不参与计算
-	//			if (interVidx_(fv[(i + 1) % 3]) != -1)
-	//			{
-	//				//对vp求偏微分的系数
-	//				Eigen::Vector3d v11 = (p0 - p1) / (tan(ca[i]) * length(i) * length(i));
-	//				//对vq求偏微分的系数
-	//				Eigen::Vector3d v10 = (p0 - p2) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v11;
-	//				//系数项
-	//				double K = vAngles(fv[(i + 1) % 3]) - 2.0 * M_PI;
-	//				double coeffK = K / sqrtf(K * K + eps_);
-	//				for (int j = 0; j < 3; ++j)
-	//				{
-	//					if (v11[j]) grad(fv[(i + 1) % 3] * 3 + j) += w1_ * coeffK * v11[j];
-	//					if (v10[j]) grad(fv[i] * 3 + j) += w1_ * coeffK * v10[j];
-	//				}
-	//			}
-	//
-	//			if (interVidx_(fv[(i + 2) % 3]) != -1)
-	//			{
-	//				//对vp求偏微分的系数
-	//				Eigen::Vector3d v22 = (p0 - p2) / (tan(ca[i]) * length((i + 2) % 3) * length((i + 2) % 3));
-	//				//对vq求偏微分的系数
-	//				Eigen::Vector3d v20 = (p0 - p1) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v22;
-	//				//系数项
-	//				double K = vAngles(fv[(i + 2) % 3]) - 2.0 * M_PI;
-	//				double coeffK = K / sqrtf(K * K + eps_);
-	//				for (int j = 0; j < 3; ++j)
-	//				{
-	//					if (v22[j]) grad(fv[(i + 2) % 3] * 3 + j) += w1_ * coeffK * v22[j];
-	//					if (v20[j]) grad(fv[i] * 3 + j) += w1_ * coeffK * v20[j];
-	//				}
-	//			}
-	//		}
-	//	}
-	//}
-	//
 	void my_function::cal_gaussian_gradient(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& interVidx, MatrixTypeConst& mAngles, const VectorType& vAngles, Eigen::SparseMatrix<DataType>& mGradient)
 	{
 		std::vector<Tri> triple;
@@ -544,65 +483,58 @@ namespace func_opt
 		{
 			//记录当前面信息
 			const Eigen::Vector3i& fv = F_.col(fit);
-			const Eigen::Vector3d& ca = mAngles.col(fit);
-			Eigen::Matrix3d p;
-			for (int i = 0; i < 3; ++i)
-				p.col(i) = V.col(fv[i]);
+			const PosVector& ca = mAngles.col(fit);
 
-			//计算各角及各边长
-			Eigen::Vector3d length;
+ 			//计算各角及各边长
+			PosVector length;
 			for (int i = 0; i < 3; ++i)
 			{
-				length(i) = (p.col((i + 1) % 3) - p.col(i)).norm();
+				length(i) = (V.col(fv[(i + 1) % 3]) - V.col(fv[i])).norm();
 			}
 
 			//对每个顶点计算相关系数
 			for (int i = 0; i < 3; ++i)
 			{
 				//Mix area
-				const Eigen::Vector3d& p0 = p.col(i);
-				const Eigen::Vector3d& p1 = p.col((i + 1) % 3);
-				const Eigen::Vector3d& p2 = p.col((i + 2) % 3);
+				const PosVector& p0 = V.col(fv[i]);
+				const PosVector& p1 = V.col(fv[(i + 1) % 3]);
+				const PosVector& p2 = V.col(fv[(i + 2) % 3]);
 
 				//判断顶点fv是否为内部顶点，边界顶点不参与计算
 				if (interVidx(fv[(i + 1) % 3]) != -1)
 				{
 					//对vp求偏微分的系数
-					Eigen::Vector3d v11 = (p0 - p1) / (tan(ca[i]) * length(i) * length(i));
+					PosVector v11 = (p0 - p1) / (tan(ca[i]) * length(i) * length(i));
 					//对vq求偏微分的系数
-					Eigen::Vector3d v10 = (p0 - p2) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v11;
+					PosVector v10 = (p0 - p2) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v11;
 					//系数项
-					const double K = vAngles(fv[(i + 1) % 3]) - 2.0 * M_PI;
-					const double coeffK = K / sqrtf(K * K + eps_);
 					for (int j = 0; j < 3; ++j)
 					{
 						if (v11[j])
-							triple.push_back(Tri((fv[(i + 1) % 3]) * 3 + j, fv[(i + 1) % 3] * 3 + j, coeffK * v11[j]));
+							triple.push_back(Tri(fv[(i + 1) % 3] * 3 + j, (fv[(i + 1) % 3]) * 3 + j, v11[j]));
 						if (v10[j])
-							triple.push_back(Tri((fv[(i + 1) % 3]) * 3 + j, fv[i] * 3 + j, coeffK * v10[j]));
+							triple.push_back(Tri(fv[i] * 3 + j, (fv[(i + 1) % 3]) * 3 + j, v10[j]));
 					}
 				}
 
 				if (interVidx(fv[(i + 2) % 3]) != -1)
 				{
 					//对vp求偏微分的系数
-					Eigen::Vector3d v22 = (p0 - p2) / (tan(ca[i]) * length((i + 2) % 3) * length((i + 2) % 3));
+					PosVector v22 = (p0 - p2) / (tan(ca[i]) * length((i + 2) % 3) * length((i + 2) % 3));
 					//对vq求偏微分的系数
-					Eigen::Vector3d v20 = (p0 - p1) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v22;
+					PosVector v20 = (p0 - p1) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v22;
 					//系数项
-					const double K = vAngles(fv[(i + 2) % 3]) - 2.0 * M_PI;
-					const double coeffK = K / sqrtf(K * K + eps_);
 					for (int j = 0; j < 3; ++j)
 					{
 						if (v22[j])
-							triple.push_back(Tri((fv[(i + 2) % 3]) * 3 + j, fv[(i + 2) % 3] * 3 + j, coeffK * v22[j]));
+							triple.push_back(Tri(fv[(i + 2) % 3] * 3 + j, (fv[(i + 2) % 3]) * 3 + j, v22[j]));
 						if (v20[j])
-							triple.push_back(Tri((fv[(i + 2) % 3]) * 3 + j, fv[i] * 3 + j, coeffK * v20[j]));
+							triple.push_back(Tri(fv[i] * 3 + j, (fv[(i + 2) % 3]) * 3 + j, v20[j]));
 					}
 				}
 			}
 		}
-		mGradient.resize((Vnum_ * 3), Vnum_ * 3);
+		mGradient.resize(Vnum_ * 3, Vnum_ * 3);
 		mGradient.setFromTriplets(triple.begin(), triple.end());
 	}
 

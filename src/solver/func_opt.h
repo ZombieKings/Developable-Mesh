@@ -70,6 +70,8 @@ namespace func_opt {
 		VectorType vAngles_;
 		VectorType areas_;
 
+		int normtype_ = 0;
+
 		double eps_ = 0.0;
 		double w1_ = 1.0;
 		double w2_ = 1.0;
@@ -84,14 +86,14 @@ namespace func_opt {
 		Eigen::SparseMatrix<DataType> Gau_;
 	protected:
 		void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix3Xi& F);
-		void makeF2V(const Eigen::Matrix3Xi& F, int Vnum, Eigen::SparseMatrix<DataType>& F2V);
+		void cal_topo(const Eigen::Matrix3Xi& F, int Vnum, Eigen::SparseMatrix<DataType>& F2V);
 		void cal_angles_and_areas(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const std::vector<int>& boundIdx, MatrixType& matAngles, VectorType& vecAngles, VectorType& areas);
 		void cal_grad(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, Eigen::SparseMatrix<DataType>& G);
 		void cal_grad_pos(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixType& gradXpos, MatrixType& gradYpos, MatrixType& gradZpos);
-		//void cal_gaussian_gradient(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const VectorType& interVidx, const MatrixType& mAngles,const VectorType& vAngles, VectorType& grad);
+		
+		//计算出高斯曲率的梯度矩阵,每列对应每个变量
 		void cal_gaussian_gradient(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& interVidx, MatrixTypeConst& mAngles,const VectorType& vAngles, Eigen::SparseMatrix<DataType>& mGradient);
 
-		
 		//计算均值laplace矩阵，边界顶点部分未剔除
 		void cal_cot_laplace(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixTypeConst& A, const Eigen::VectorXi& interVidx, Eigen::SparseMatrix<DataType>& L);
 		void cal_uni_laplace(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, Eigen::SparseMatrix<DataType>& L);

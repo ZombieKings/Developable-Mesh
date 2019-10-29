@@ -52,11 +52,15 @@ namespace opt_solver {
 	{
 		const size_t num_diag = H_.rows();
 		diag_H.resize(num_diag);
-		for (size_t i = 0; i < num_diag; ++i) {
+		for (size_t i = 0; i < num_diag; ++i) 
+		{
 			diag_H[i] = &H_.coeffRef(i, i);
+			//std::cout << &H_.coeffRef(i, i) << std::endl;
+			//std::cout << *diag_H[i] << std::endl;
+			//std::cout << diag_H[i] << " " << &H_.coeffRef(i, i) << std::endl;
 		}
 		return 0;
-	}
+	} 
 
 	int newton_solver::add_to_diag(const double* D)
 	{
@@ -75,7 +79,6 @@ namespace opt_solver {
 		}
 		return 1;
 	}
-
 
 	int newton_solver::compute_D(double* D)
 	{
@@ -247,11 +250,14 @@ namespace opt_solver {
 				std::cerr << "\tTC";
 			}
 			else { // Cauchy point is inside, evaluate Newton point
-				compute_D(&D[0]);
+				//compute_D(&D[0]);
+				compute_D(D.data());
 				D *= mu;
-				add_to_diag(&D[0]);
+				//add_to_diag(&D[0]);
+				add_to_diag(D.data());
 				slv_.factorize(H_);
-				sub_from_diag(&D[0]);
+				//sub_from_diag(&D[0]);
+				sub_from_diag(D.data());
 
 				if (slv_.info() == Eigen::Success) {
 					step_ = -slv_.solve(grad_);
