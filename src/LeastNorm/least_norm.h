@@ -36,6 +36,7 @@
 #include <vtkLookupTable.h>
 #include <vtkProgrammableFilter.h>
 #include <vtkColorTransferFunction.h>
+#include <vtkScalarBarActor.h>
 
 //=============================================================================
 using namespace surface_mesh;

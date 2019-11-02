@@ -1,5 +1,6 @@
 #include "least_norm.h"
 
+bool flag = false;
 unsigned int counter = 0;
 std::vector<int> interV;
 std::vector<int> boundV;
@@ -46,8 +47,9 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 		dqn = update_d_.squaredNorm();
 		pretheta = theta;
 		theta = cal_error(vertices_mat, faces_mat, angle_mat, 1);
+		double theta2 = cal_error(vertices_mat, faces_mat, angle_mat, 0);
 
-		std::cout << "第" << counter << "次迭代，最大误差为： " << theta << std::endl;
+		std::cout << "第" << counter << "次迭代，最大误差为： " << theta << "，平均误差为： " << theta2 << std::endl;
 		//---------update mesh----------
 		if (theta >= 0.001 || (counter <= 20 && (pretheta - theta) >= 0.01))
 		{
@@ -104,12 +106,19 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 
 		counter++;
 	}
+	else if(!flag)
+	{
+		double e1 = cal_error(vertices_mat, faces_mat, angle_mat, 1);
+		double e2 = cal_error(vertices_mat, faces_mat, angle_mat, 0);
+		std::cout << "共" << counter << "次迭代，优化结果最大误差为： " << e1 << "，平均误差为： " << e2 << std::endl;
+		flag = true;
+	}
 }
 
 int main(int argc, char** argv)
 {
 	Surface_mesh mesh;
-	if (!mesh.read("3.off"))
+	if (!mesh.read(argv[1]))
 	{
 		std::cout << "Load failed!" << std::endl;
 	}
@@ -159,7 +168,7 @@ int main(int argc, char** argv)
 	auto style = vtkInteractorStyleTrackballCamera::New();
 	interactor->SetInteractorStyle(style);
 	interactor->Initialize();
-	interactor->CreateRepeatingTimer(1000);
+	interactor->CreateRepeatingTimer(10000);
 
 	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
 	timeCallback->SetCallback(CallbackFunction);
@@ -466,6 +475,12 @@ void visualize_mesh(vtkRenderer* Renderer, const Eigen::Matrix3Xf& V, const Eige
 
 	auto lut = vtkSmartPointer<vtkLookupTable>::New();
 	MakeLUT(scalar, lut);
+
+	auto scalarBar = vtkSmartPointer<vtkScalarBarActor>::New();
+	scalarBar->SetLookupTable(lut);
+	scalarBar->SetTitle("Curvature Error");
+	scalarBar->SetNumberOfLabels(4);
+
 	//网格及法向渲染器
 	auto polyMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
 	polyMapper->SetInputData(P);
@@ -476,4 +491,5 @@ void visualize_mesh(vtkRenderer* Renderer, const Eigen::Matrix3Xf& V, const Eige
 	polyActor->SetMapper(polyMapper);
 	polyActor->GetProperty()->SetDiffuseColor(1, 1, 1);
 	Renderer->AddActor(polyActor);
+	Renderer->AddActor2D(scalarBar);
 }

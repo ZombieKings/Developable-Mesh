@@ -159,7 +159,7 @@ void cal_uni_laplace(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, Eigen::Spars
 	L.setFromTriplets(tripleL.begin(), tripleL.end());
 }
 
-void cal_grad(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, Eigen::SparseMatrix<DataType>& G)
+void cal_face_grad(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, Eigen::SparseMatrix<DataType>& G)
 {
 	std::vector<Tri> tripleG;
 	tripleG.reserve(F.cols() * 3 * 4);

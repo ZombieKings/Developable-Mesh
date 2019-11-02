@@ -17,7 +17,7 @@ typedef const Eigen::Matrix3Xf MatrixTypeConst;
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& vertices_mat, Eigen::Matrix3Xi& faces_mat);
 
 //离散梯度算子，G为梯度算子离散后的矩阵
-void cal_grad(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, Eigen::SparseMatrix<DataType>& G);
+void cal_face_grad(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, Eigen::SparseMatrix<DataType>& G);
 void cal_grad_pos(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixType& gradX, MatrixType& gradY, MatrixType& gradZ);
 
 //拉普拉斯算子，L为拉普拉斯系数矩阵

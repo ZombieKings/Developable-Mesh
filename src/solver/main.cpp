@@ -1,4 +1,3 @@
-
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <iostream>
@@ -48,7 +47,6 @@
 #include <vtkTextActor.h>
 #include <vtkTextProperty.h>
 
-
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xd& vertices_mat, Eigen::Matrix3Xi& faces_mat);
 void cal_angles(const Eigen::Matrix3Xd& V, const Eigen::Matrix3Xi& F, Eigen::VectorXd& vecAngles);
 
@@ -58,84 +56,114 @@ void visualize_mesh(vtkRenderer* Renderer, const Eigen::Matrix3Xd& V, const Eige
 
 int main(int argc, char** argv)
 {
-	//surface_mesh::Surface_mesh mesh;
-	//if (!mesh.read(argv[1]))
-	//{
-	//	std::cout << "Laod failed!" << std::endl;
-	//}
-	//std::cout << mesh.n_vertices() << std::endl;
-	//std::cout << mesh.n_faces() << std::endl;
+	surface_mesh::Surface_mesh mesh;
+	if (!mesh.read(argv[1]))
+	{
+		std::cout << "Laod failed!" << std::endl;
+	}
+	std::cout << mesh.n_vertices() << std::endl;
+	std::cout << mesh.n_faces() << std::endl;
 
-	//Eigen::VectorXi interVidx;
-	//interVidx.resize(mesh.n_vertices());
-	//memset(interVidx.data(), -1, sizeof(int) * interVidx.size());
-	//int count = 0;
-	//for (const auto& vit : mesh.vertices())
+	Eigen::VectorXi interVidx;
+	interVidx.resize(mesh.n_vertices());
+	memset(interVidx.data(), -1, sizeof(int) * interVidx.size());
+	int count = 0;
+	for (const auto& vit : mesh.vertices())
+	{
+		if (!mesh.is_boundary(vit))
+		{
+			interVidx(vit.idx()) = count++;
+		}
+	}
+	Eigen::Matrix3Xd matV;
+	Eigen::Matrix3Xi matF;
+	mesh2matrix(mesh, matV, matF);
+	Eigen::Matrix3Xd oriV(matV);
+	Eigen::VectorXd oriA;
+	cal_angles(oriV, matF, oriA);
+
+	func_opt::my_function f(mesh, 0.01, 10.0, 1.0, 1.0);
+	opt_solver::newton_solver solver;
+	solver.set_f(f);
+	//solver.solve_sqp(matV.data());
+	solver.solve(matV.data());
+
+	Eigen::VectorXd resA;
+	cal_angles(matV, matF, resA);
+
+	//---------------可视化---------------
+	//创建窗口
+	auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
+	renderWindow->SetSize(1600, 800);
+	auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
+	//visualize_mesh(renderer1, curV, matF_, reA);
+	visualize_mesh(renderer1, matV, matF, resA, interVidx);
+	renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
+
+	// Setup the text and add it to the renderer
+	auto textActor1 = vtkSmartPointer<vtkTextActor>::New();
+	textActor1->SetInput("Result Mesh");
+	textActor1->GetTextProperty()->SetFontSize(33);
+	textActor1->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	renderer1->AddActor2D(textActor1);
+
+	//视角设置
+	renderer1->ResetCamera();
+	renderWindow->AddRenderer(renderer1);
+
+	auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
+	//visualize_mesh(renderer2, matV_, matF_, oriA);
+	visualize_mesh(renderer2, oriV, matF, oriA, interVidx);
+	renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
+
+	// Setup the text and add it to the renderer
+	auto textActor2 = vtkSmartPointer<vtkTextActor>::New();
+	textActor2->SetInput("Original Mesh");
+	textActor2->GetTextProperty()->SetFontSize(33);
+	textActor2->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	renderer2->AddActor2D(textActor2);
+
+	//视角设置
+	renderer2->ResetCamera();
+	renderWindow->AddRenderer(renderer2);
+
+	auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+	interactor->SetRenderWindow(renderWindow);
+	auto style = vtkInteractorStyleTrackballCamera::New();
+	interactor->SetInteractorStyle(style);
+	interactor->Initialize();
+
+	//开始
+	renderWindow->Render();
+	interactor->Start();
+
+	//Eigen::SparseMatrix<double> M;
+	//std::vector<Eigen::Triplet<double>> t;
+	//t.push_back(Eigen::Triplet<double>(0, 0, 1));
+	//t.push_back(Eigen::Triplet<double>(1, 1, 0));
+	//t.push_back(Eigen::Triplet<double>(2, 2, 1));
+	//M.resize(3, 3);
+	//M.setFromTriplets(t.begin(), t.end());
+	//for (int k = 0, i = 0; k < M.outerSize(); ++k)
 	//{
-	//	if (!mesh.is_boundary(vit))
+	//	for (Eigen::SparseMatrix<double>::InnerIterator it(M, k); it; ++it)
 	//	{
-	//		interVidx(vit.idx()) = count++;
+	//		std::cout << it.row() << "," << it.col() << std::endl;
 	//	}
 	//}
-	//Eigen::Matrix3Xd matV;
-	//Eigen::Matrix3Xi matF;
-	//mesh2matrix(mesh, matV, matF);
-	//Eigen::Matrix3Xd oriV(matV);
-	//Eigen::VectorXd oriA;
-	//cal_angles(oriV, matF, oriA);
+	//std::cout << M << std::endl;
+	//std::cout << M.nonZeros() << std::endl;
 
-	//func_opt::my_function f(mesh, 0.001, 1.0, 1.0, 1.0);
-	//opt_solver::newton_solver solver;
-	//solver.set_f(f);
-	//solver.solve_sqp(matV.data());
-	////solver.solve(matV.data());
-
-	//Eigen::VectorXd resA;
-	//cal_angles(matV, matF, resA);
-
-	////---------------可视化---------------
-	////创建窗口
-	//auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
-	//renderWindow->SetSize(1600, 1000);
-	//auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
-	//visualize_mesh(renderer1, matV, matF, oriA, interVidx);
-	//renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
-	////视角设置
-	//renderer1->ResetCamera();
-	//renderWindow->AddRenderer(renderer1);
-
-	//auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
-	//visualize_mesh(renderer2, oriV, matF, resA, interVidx);
-	//renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
-	////视角设置
-	//renderer2->ResetCamera();
-	//renderWindow->AddRenderer(renderer2);
-
-	//auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
-	//interactor->SetRenderWindow(renderWindow);
-	//auto style = vtkInteractorStyleTrackballCamera::New();
-	//interactor->SetInteractorStyle(style);
-	//interactor->Initialize();
-
-	////开始
-	//renderWindow->Render();
-	//interactor->Start();
-
-	Eigen::SparseMatrix<double> M;
-	std::vector<Eigen::Triplet<double>> t;
-	t.push_back(Eigen::Triplet<double>(0, 0, 1));
-	//t.push_back(Eigen::Triplet<double>(1, 1, 0));
-	t.push_back(Eigen::Triplet<double>(2, 2, 1));
-	M.resize(3, 3);
-	M.setFromTriplets(t.begin(), t.end());
-	std::cout << M << std::endl;
-	std::cout << &M.coeffRef(0,0) << std::endl;
-	std::cout << &M.coeffRef(1,1) << std::endl;
-	std::cout << &M.coeffRef(0,0) << std::endl;
-	std::cout << &M.coeffRef(1, 1) << std::endl;
-	std::cout << &M.coeffRef(0, 0) << std::endl;
-	std::cout << &M.coeffRef(1, 0) << std::endl;
-	std::cout << &M.coeffRef(0, 0) << std::endl;
+	//Eigen::SparseMatrix<bool> M;
+	//std::vector<Eigen::Triplet<bool>> t;
+	//t.push_back(Eigen::Triplet<bool>(0, 0, true));
+	//t.push_back(Eigen::Triplet<bool>(0, 1, true));
+	//t.push_back(Eigen::Triplet<bool>(0, 0, true));
+	//t.push_back(Eigen::Triplet<bool>(0, 0, true));
+	//M.resize(3, 3);
+	//M.setFromTriplets(t.begin(), t.end());
+	//std::cout << M << std::endl;
+	//std::cout << M.row(0).sum() << std::endl;
 
 	return 1;
 }
