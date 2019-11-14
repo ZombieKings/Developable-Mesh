@@ -56,86 +56,86 @@ void visualize_mesh(vtkRenderer* Renderer, const Eigen::Matrix3Xd& V, const Eige
 
 int main(int argc, char** argv)
 {
-	surface_mesh::Surface_mesh mesh;
-	if (!mesh.read(argv[1]))
-	{
-		std::cout << "Laod failed!" << std::endl;
-	}
-	std::cout << mesh.n_vertices() << std::endl;
-	std::cout << mesh.n_faces() << std::endl;
+	//surface_mesh::Surface_mesh mesh;
+	//if (!mesh.read(argv[1]))
+	//{
+	//	std::cout << "Laod failed!" << std::endl;
+	//}
+	//std::cout << mesh.n_vertices() << std::endl;
+	//std::cout << mesh.n_faces() << std::endl;
 
-	Eigen::VectorXi interVidx;
-	interVidx.resize(mesh.n_vertices());
-	memset(interVidx.data(), -1, sizeof(int) * interVidx.size());
-	int count = 0;
-	for (const auto& vit : mesh.vertices())
-	{
-		if (!mesh.is_boundary(vit))
-		{
-			interVidx(vit.idx()) = count++;
-		}
-	}
-	Eigen::Matrix3Xd matV;
-	Eigen::Matrix3Xi matF;
-	mesh2matrix(mesh, matV, matF);
-	Eigen::Matrix3Xd oriV(matV);
-	Eigen::VectorXd oriA;
-	cal_angles(oriV, matF, oriA);
+	//Eigen::VectorXi interVidx;
+	//interVidx.resize(mesh.n_vertices());
+	//memset(interVidx.data(), -1, sizeof(int) * interVidx.size());
+	//int count = 0;
+	//for (const auto& vit : mesh.vertices())
+	//{
+	//	if (!mesh.is_boundary(vit))
+	//	{
+	//		interVidx(vit.idx()) = count++;
+	//	}
+	//}
+	//Eigen::Matrix3Xd matV;
+	//Eigen::Matrix3Xi matF;
+	//mesh2matrix(mesh, matV, matF);
+	//Eigen::Matrix3Xd oriV(matV);
+	//Eigen::VectorXd oriA;
+	//cal_angles(oriV, matF, oriA);
 
-	func_opt::my_function f(mesh, 0.01, 10.0, 1.0, 1.0);
-	opt_solver::newton_solver solver;
-	solver.set_f(f);
-	//solver.solve_sqp(matV.data());
-	solver.solve(matV.data());
+	//func_opt::my_function f(mesh, 0.01, 10.0, 1.0, 1.0);
+	//opt_solver::newton_solver solver;
+	//solver.set_f(f);
+	////solver.solve_sqp(matV.data());
+	//solver.solve(matV.data());
 
-	Eigen::VectorXd resA;
-	cal_angles(matV, matF, resA);
+	//Eigen::VectorXd resA;
+	//cal_angles(matV, matF, resA);
 
-	//---------------可视化---------------
-	//创建窗口
-	auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
-	renderWindow->SetSize(1600, 800);
-	auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
-	//visualize_mesh(renderer1, curV, matF_, reA);
-	visualize_mesh(renderer1, matV, matF, resA, interVidx);
-	renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
+	////---------------可视化---------------
+	////创建窗口
+	//auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
+	//renderWindow->SetSize(1600, 800);
+	//auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
+	////visualize_mesh(renderer1, curV, matF_, reA);
+	//visualize_mesh(renderer1, matV, matF, resA, interVidx);
+	//renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
 
-	// Setup the text and add it to the renderer
-	auto textActor1 = vtkSmartPointer<vtkTextActor>::New();
-	textActor1->SetInput("Result Mesh");
-	textActor1->GetTextProperty()->SetFontSize(33);
-	textActor1->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
-	renderer1->AddActor2D(textActor1);
+	//// Setup the text and add it to the renderer
+	//auto textActor1 = vtkSmartPointer<vtkTextActor>::New();
+	//textActor1->SetInput("Result Mesh");
+	//textActor1->GetTextProperty()->SetFontSize(33);
+	//textActor1->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	//renderer1->AddActor2D(textActor1);
 
-	//视角设置
-	renderer1->ResetCamera();
-	renderWindow->AddRenderer(renderer1);
+	////视角设置
+	//renderer1->ResetCamera();
+	//renderWindow->AddRenderer(renderer1);
 
-	auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
-	//visualize_mesh(renderer2, matV_, matF_, oriA);
-	visualize_mesh(renderer2, oriV, matF, oriA, interVidx);
-	renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
+	//auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
+	////visualize_mesh(renderer2, matV_, matF_, oriA);
+	//visualize_mesh(renderer2, oriV, matF, oriA, interVidx);
+	//renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
 
-	// Setup the text and add it to the renderer
-	auto textActor2 = vtkSmartPointer<vtkTextActor>::New();
-	textActor2->SetInput("Original Mesh");
-	textActor2->GetTextProperty()->SetFontSize(33);
-	textActor2->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
-	renderer2->AddActor2D(textActor2);
+	//// Setup the text and add it to the renderer
+	//auto textActor2 = vtkSmartPointer<vtkTextActor>::New();
+	//textActor2->SetInput("Original Mesh");
+	//textActor2->GetTextProperty()->SetFontSize(33);
+	//textActor2->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	//renderer2->AddActor2D(textActor2);
 
-	//视角设置
-	renderer2->ResetCamera();
-	renderWindow->AddRenderer(renderer2);
+	////视角设置
+	//renderer2->ResetCamera();
+	//renderWindow->AddRenderer(renderer2);
 
-	auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
-	interactor->SetRenderWindow(renderWindow);
-	auto style = vtkInteractorStyleTrackballCamera::New();
-	interactor->SetInteractorStyle(style);
-	interactor->Initialize();
+	//auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+	//interactor->SetRenderWindow(renderWindow);
+	//auto style = vtkInteractorStyleTrackballCamera::New();
+	//interactor->SetInteractorStyle(style);
+	//interactor->Initialize();
 
-	//开始
-	renderWindow->Render();
-	interactor->Start();
+	////开始
+	//renderWindow->Render();
+	//interactor->Start();
 
 	//Eigen::SparseMatrix<double> M;
 	//std::vector<Eigen::Triplet<double>> t;
@@ -165,6 +165,11 @@ int main(int argc, char** argv)
 	//std::cout << M << std::endl;
 	//std::cout << M.row(0).sum() << std::endl;
 
+	Eigen::Vector3d d(1,1,1);
+	Eigen::Vector3d c(1,2,3);
+	std::cout << d.array() - 2.0 << std::endl;
+	std::cout << d<< std::endl;
+	//std::cout << d.cwiseProduct(c).squaredNorm() << std::endl;
 	return 1;
 }
 

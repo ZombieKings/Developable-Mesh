@@ -68,7 +68,7 @@ void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::M
 			//save vertices informations
 			if (!flag(fvit.idx()))
 			{
-				V.col(fvit.idx()) = Eigen::Map<const VectorType>(mesh.position(surface_mesh::Surface_mesh::Vertex(fvit.idx())).data());
+				V.col(fvit.idx()) = Eigen::Map<const VectorType>(mesh.position(surface_mesh::Surface_mesh::Vertex(fvit.idx())).data()).cast<DataType>();
 				flag(fvit.idx()) = 1;
 			}
 		}

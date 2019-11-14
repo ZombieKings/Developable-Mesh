@@ -2,9 +2,9 @@
 
 bool flag = false;
 unsigned int counter = 0;
-std::vector<int> interV;
-std::vector<int> boundV;
-Eigen::VectorXi interVidx;
+std::vector<int> interV_;
+std::vector<int> boundV_;
+Eigen::VectorXi interVidx_;
 
 Eigen::VectorXf angle_sum_;
 Eigen::Matrix3Xf angle_mat;
@@ -124,25 +124,24 @@ int main(int argc, char** argv)
 	}
 
 	//收集内部顶点下标
-	interV.clear();
-	interVidx.resize(mesh.n_vertices());
-	interVidx.setOnes();
-	interVidx *= -1;
+	interV_.clear();
+	interVidx_.setConstant(mesh.n_vertices() + 1, -1);
 	int count = 0;
 	for (const auto& vit : mesh.vertices())
 	{
 		if (!mesh.is_boundary(vit))
 		{
-			interV.push_back(vit.idx());
-			interVidx(vit.idx()) = count++;
+			interV_.push_back(vit.idx());
+			interVidx_(vit.idx()) = count++;
 		}
 		else
 		{
-			boundV.push_back(vit.idx());
+			boundV_.push_back(vit.idx());
 		}
 	}
+	interVidx_(mesh.n_vertices()) = count;
 
-	epsilon = std::max(interV.size() * pow(10, -8), pow(10, -5));
+	epsilon = std::max(interV_.size() * pow(10, -8), pow(10, -5));
 
 	//-----------保存构造的网格-----------
 	mesh2matrix(mesh, vertices_mat, faces_mat);
@@ -168,7 +167,7 @@ int main(int argc, char** argv)
 	auto style = vtkInteractorStyleTrackballCamera::New();
 	interactor->SetInteractorStyle(style);
 	interactor->Initialize();
-	interactor->CreateRepeatingTimer(10000);
+	interactor->CreateRepeatingTimer(1000);
 
 	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
 	timeCallback->SetCallback(CallbackFunction);
@@ -229,7 +228,7 @@ void cal_angles(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::Mat
 	{
 		for (size_t i = 0; i < 3; ++i)
 		{
-			if (interVidx(F(i, j)) != -1)
+			if (interVidx_(F(i, j)) != -1)
 				angle_sum_(F(i, j)) += A(i, j);
 			else
 				angle_sum_(F(i, j)) = 2.0 * M_PI;
@@ -243,20 +242,20 @@ double cal_error(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eig
 	if (flag)
 	{
 		double max = 0;
-		for (size_t i = 0; i < interV.size(); ++i)
+		for (size_t i = 0; i < interV_.size(); ++i)
 		{
-			max = abs(2.0 * M_PI - angle_sum_(interV[i])) > max ? abs(2.0 * M_PI - angle_sum_(interV[i])) : max;
+			max = abs(2.0 * M_PI - angle_sum_(interV_[i])) > max ? abs(2.0 * M_PI - angle_sum_(interV_[i])) : max;
 		}
 		return max;
 	}
 	else
 	{
 		double averange = 0;
-		for (size_t i = 0; i < interV.size(); ++i)
+		for (size_t i = 0; i < interV_.size(); ++i)
 		{
-			averange += angle_sum_(interV[i]);
+			averange += angle_sum_(interV_[i]);
 		}
-		averange = 2.0 * M_PI - averange / interV.size();
+		averange = 2.0 * M_PI - averange / interV_.size();
 		return averange;
 	}
 }
@@ -286,7 +285,7 @@ void cal_laplace(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eig
 			const int fv1 = fv[(vi + 1) % 3];
 			const int fv2 = fv[(vi + 2) % 3];
 
-			if (interVidx(fv0) != -1)
+			if (interVidx_(fv0) != -1)
 			{
 				areas(fv0) += area;
 				triple.push_back(Eigen::Triplet<float>(fv0, fv0, 1.0f / std::tan(ca[(vi + 1) % 3]) + 1.0f / std::tan(ca[(vi + 2) % 3])));
@@ -295,9 +294,9 @@ void cal_laplace(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eig
 			}
 		}
 	}
-	for (size_t i = 0; i < boundV.size(); ++i)
+	for (size_t i = 0; i < boundV_.size(); ++i)
 	{
-		triple.push_back(Eigen::Triplet<float>(boundV[i], boundV[i], 100));
+		triple.push_back(Eigen::Triplet<float>(boundV_[i], boundV_[i], 100));
 	}
 
 	//下半部分单位矩阵
@@ -309,20 +308,20 @@ void cal_laplace(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eig
 	L.resize(V.cols() * 2, V.cols());
 	L.setFromTriplets(triple.begin(), triple.end());
 
-	float sum_area = areas.sum() / float(interV.size());
+	float sum_area = areas.sum() / float(interV_.size());
 
-	for (int r = 0; r < interV.size(); ++r)
+	for (int r = 0; r < interV_.size(); ++r)
 	{
-		L.row(interV[r]) *= sum_area / (2.0f * areas(interV[r]));
+		L.row(interV_[r]) *= sum_area / (2.0f * areas(interV_[r]));
 	}
 
 	b.resize(V.cols() * 2, 3);
 	b.setZero();
 
 	//固定边界
-	for (size_t ib = 0; ib < boundV.size(); ++ib)
+	for (size_t ib = 0; ib < boundV_.size(); ++ib)
 	{
-		b.row(boundV[ib]) = V.col(boundV[ib]).transpose() * 100;
+		b.row(boundV_[ib]) = V.col(boundV_[ib]).transpose() * 100;
 	}
 	//变形目标
 	for (int r = 0; r < V.cols(); ++r)
@@ -370,7 +369,7 @@ void cal_least_norm(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const 
 
 			sum_angle(fv[i]) += A(i, fit);
 			//判断顶点fv是否为内部顶点，边界顶点不参与计算
-			if (interVidx(fv[(i + 1) % 3]) != -1)
+			if (interVidx_(fv[(i + 1) % 3]) != -1)
 			{
 				//对vp求偏微分的系数
 				Eigen::Vector3f v11 = (p0 - p1) / (tan(ca[i]) * length(i) * length(i));
@@ -378,12 +377,12 @@ void cal_least_norm(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const 
 				Eigen::Vector3f v10 = (p0 - p2) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v11;
 				for (int j = 0; j < 3; ++j)
 				{
-					if (v11[j]) triple.push_back(Eigen::Triplet<float>(interVidx(fv[(i + 1) % 3]), fv[(i + 1) % 3] * 3 + j, v11[j]));
-					if (v10[j]) triple.push_back(Eigen::Triplet<float>(interVidx(fv[(i + 1) % 3]), fv[i] * 3 + j, v10[j]));
+					if (v11[j]) triple.push_back(Eigen::Triplet<float>(interVidx_(fv[(i + 1) % 3]), fv[(i + 1) % 3] * 3 + j, v11[j]));
+					if (v10[j]) triple.push_back(Eigen::Triplet<float>(interVidx_(fv[(i + 1) % 3]), fv[i] * 3 + j, v10[j]));
 				}
 			}
 
-			if (interVidx(fv[(i + 2) % 3]) != -1)
+			if (interVidx_(fv[(i + 2) % 3]) != -1)
 			{
 				//对vp求偏微分的系数
 				Eigen::Vector3f v22 = (p0 - p2) / (tan(ca[i]) * length((i + 2) % 3) * length((i + 2) % 3));
@@ -391,31 +390,31 @@ void cal_least_norm(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const 
 				Eigen::Vector3f v20 = (p0 - p1) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v22;
 				for (int j = 0; j < 3; ++j)
 				{
-					if (v22[j]) triple.push_back(Eigen::Triplet<float>(interVidx(fv[(i + 2) % 3]), fv[(i + 2) % 3] * 3 + j, v22[j]));
-					if (v20[j]) triple.push_back(Eigen::Triplet<float>(interVidx(fv[(i + 2) % 3]), fv[i] * 3 + j, v20[j]));
+					if (v22[j]) triple.push_back(Eigen::Triplet<float>(interVidx_(fv[(i + 2) % 3]), fv[(i + 2) % 3] * 3 + j, v22[j]));
+					if (v20[j]) triple.push_back(Eigen::Triplet<float>(interVidx_(fv[(i + 2) % 3]), fv[i] * 3 + j, v20[j]));
 				}
 			}
 		}
 	}
 
 	//rhs
-	b.resize(interV.size() + boundV.size() * 3);
+	b.resize(interV_.size() + boundV_.size() * 3);
 	b.setZero();
 	//高斯曲率rhs
-	for (size_t i = 0; i < interV.size(); ++i)
+	for (size_t i = 0; i < interV_.size(); ++i)
 	{
-		b(i) = 2.0f * M_PI - sum_angle(interV[i]);
+		b(i) = 2.0f * M_PI - sum_angle(interV_[i]);
 	}
 	//固定边界
-	for (size_t i = 0; i < boundV.size(); ++i)
+	for (size_t i = 0; i < boundV_.size(); ++i)
 	{
 		for (size_t j = 0; j < 3; ++j)
 		{
-			triple.push_back(Eigen::Triplet<float>(interV.size() + i * 3 + j, boundV[i] * 3 + j, 1));
-			b(interV.size() + i * 3 + j) = 0;
+			triple.push_back(Eigen::Triplet<float>(interV_.size() + i * 3 + j, boundV_[i] * 3 + j, 1));
+			b(interV_.size() + i * 3 + j) = 0;
 		}
 	}
-	N.resize(interV.size() + boundV.size() * 3, V.cols() * 3);
+	N.resize(interV_.size() + boundV_.size() * 3, V.cols() * 3);
 	N.setFromTriplets(triple.begin(), triple.end());
 }
 

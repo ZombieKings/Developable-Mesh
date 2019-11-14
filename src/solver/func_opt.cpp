@@ -27,21 +27,21 @@ namespace func_opt
 		Vnum_ = mesh.n_vertices();
 		mesh2matrix(mesh, V_, F_);
 
-		//cal_topo(F_, Vnum_, F2V_, V2V_);
-		//F2Vt_ = F2V_.transpose();
+		cal_topo(F_, Vnum_, F2V_, V2V_);
+		F2Vt_ = F2V_.transpose();
 
-		//Eigen::SparseMatrix<DataType> FGrad;
-		//cal_face_grad(V_, F_, FGrad);
-		//Grad_ = F2V_ * FGrad;
+		Eigen::SparseMatrix<DataType> FGrad;
+		cal_face_grad(V_, F_, FGrad);
+		Grad_ = F2V_ * FGrad;
 
-		//preGradX_.resize(F_.cols() * 3, 1);
-		//preGradX_ = Grad_ * (V_.row(0).transpose());
+		preGradX_.resize(F_.cols() * 3, 1);
+		preGradX_ = Grad_ * (V_.row(0).transpose());
 
-		//preGradY_.resize(F_.cols() * 3, 1);
-		//preGradY_ = Grad_ * (V_.row(1).transpose());
+		preGradY_.resize(F_.cols() * 3, 1);
+		preGradY_ = Grad_ * (V_.row(1).transpose());
 
-		//preGradZ_.resize(F_.cols() * 3, 1);
-		//preGradZ_ = Grad_ * (V_.row(2).transpose());
+		preGradZ_.resize(F_.cols() * 3, 1);
+		preGradZ_ = Grad_ * (V_.row(2).transpose());
 	}
 
 	size_t my_function::dim(void) const
@@ -63,17 +63,17 @@ namespace func_opt
 			v += w1_ * temp;
 		}
 
-		////梯度坐标差
-		//Eigen::SparseMatrix<DataType> FGrad;
-		//cal_face_grad(curV, F_, FGrad);
-		//Grad_ = F2V_ * FGrad;
-		//Eigen::VectorXd gradX(Grad_ * (curV.row(0).transpose()));
-		//Eigen::VectorXd gradY(Grad_ * (curV.row(1).transpose()));
-		//Eigen::VectorXd gradZ(Grad_ * (curV.row(2).transpose()));
+		//梯度坐标差
+		Eigen::SparseMatrix<DataType> FGrad;
+		cal_face_grad(curV, F_, FGrad);
+		Grad_ = F2V_ * FGrad;
+		Eigen::VectorXd gradX(Grad_ * (curV.row(0).transpose()));
+		Eigen::VectorXd gradY(Grad_ * (curV.row(1).transpose()));
+		Eigen::VectorXd gradZ(Grad_ * (curV.row(2).transpose()));
 
-		//v += w2_ * (gradX - preGradX_).squaredNorm();
-		//v += w2_ * (gradY - preGradY_).squaredNorm();
-		//v += w2_ * (gradZ - preGradZ_).squaredNorm();
+		v += w2_ * (gradX - preGradX_).squaredNorm();
+		v += w2_ * (gradY - preGradY_).squaredNorm();
+		v += w2_ * (gradZ - preGradZ_).squaredNorm();
 
 		//边界项
 		for (int i = 0; i < boundV_.size(); ++i)
@@ -82,9 +82,9 @@ namespace func_opt
 			v += temp.squaredNorm();
 		}
 
-		//preGradX_ = gradX;
-		//preGradY_ = gradY;
-		//preGradZ_ = gradZ;
+		preGradX_ = gradX;
+		preGradY_ = gradY;
+		preGradZ_ = gradZ;
 		return 0;
 	}
 
@@ -109,25 +109,22 @@ namespace func_opt
 			}
 		}
 
-		////梯度域坐标的梯度
-		//Eigen::SparseMatrix<DataType> FGrad;
-		//cal_face_grad(curV, F_, FGrad);
-		//Grad_ = F2V_ * FGrad;
-		//Gradt_ = Grad_.transpose();
-		//GtG_ = Gradt_ * Grad_;
-		//VectorType gradX(Grad_ * (curV.row(0).transpose()));
-		//VectorType gradY(Grad_ * (curV.row(1).transpose()));
-		//VectorType gradZ(Grad_ * (curV.row(2).transpose()));
-		//VectorType tempX = Gradt_ * (gradX - preGradX_);
-		//VectorType tempY = Gradt_ * (gradY - preGradY_);
-		//VectorType tempZ = Gradt_ * (gradZ - preGradZ_);
+		//梯度域坐标的梯度
+		Eigen::SparseMatrix<DataType> FGrad;
+		cal_face_grad(curV, F_, FGrad);
+		Grad_ = F2V_ * FGrad;
+		Gradt_ = Grad_.transpose();
+		GtG_ = Gradt_ * Grad_;
+		VectorType tempX(GtG_ * (curV.row(0).transpose()));
+		VectorType tempY(GtG_ * (curV.row(1).transpose()));
+		VectorType tempZ(GtG_ * (curV.row(2).transpose()));
 
-		//for (int i = 0; i < curV.cols(); ++i)
-		//{
-		//	Gradient(i * 3) += 2.0 * w2_ * tempX(i);
-		//	Gradient(i * 3 + 1) += 2.0 * w2_ * tempY(i);
-		//	Gradient(i * 3 + 2) += 2.0 * w2_ * tempZ(i);
-		//}
+		for (int i = 0; i < curV.cols(); ++i)
+		{
+			Gradient(i * 3) += 2.0 * w2_ * tempX(i);
+			Gradient(i * 3 + 1) += 2.0 * w2_ * tempY(i);
+			Gradient(i * 3 + 2) += 2.0 * w2_ * tempZ(i);
+		}
 
 		//边界项
 		for (int i = 0; i < boundV_.size(); ++i)
@@ -137,9 +134,6 @@ namespace func_opt
 				Gradient(boundV_[i] * 3 + k) += temp(k);
 		}
 
-		//preGradX_ = gradX;
-		//preGradY_ = gradY;
-		//preGradZ_ = gradZ;
 		return 0;
 	}
 
@@ -156,21 +150,21 @@ namespace func_opt
 			v += w1_ * temp;
 		}
 
-		////梯度坐标差
-		//Eigen::SparseMatrix<DataType> FGrad;
-		//cal_face_grad(curV, F_, FGrad);
-		//Grad_ = F2V_ * FGrad;
-		//std::cout << Grad_ << std::endl;
-		//Gradt_ = Grad_.transpose();
-		//GtG_ = Gradt_ * Grad_;
-		//std::cout << GtG_ << std::endl;
+		//梯度坐标差
 
-		//Eigen::VectorXd gradX(Grad_ * (curV.row(0).transpose()));
-		//Eigen::VectorXd gradY(Grad_ * (curV.row(1).transpose()));
-		//Eigen::VectorXd gradZ(Grad_ * (curV.row(2).transpose()));
-		//v += w2_ * (gradX - preGradX_).squaredNorm();
-		//v += w2_ * (gradY - preGradY_).squaredNorm();
-		//v += w2_ * (gradZ - preGradZ_).squaredNorm();
+		//梯度域坐标的梯度
+		Eigen::SparseMatrix<DataType> FGrad;
+		cal_face_grad(curV, F_, FGrad);
+		Grad_ = F2V_ * FGrad;
+		Gradt_ = Grad_.transpose();
+		GtG_ = Gradt_ * Grad_;
+
+		Eigen::VectorXd gradX(Grad_ * (curV.row(0).transpose()));
+		Eigen::VectorXd gradY(Grad_ * (curV.row(1).transpose()));
+		Eigen::VectorXd gradZ(Grad_ * (curV.row(2).transpose()));
+		v += w2_ * (gradX - preGradX_).squaredNorm();
+		v += w2_ * (gradY - preGradY_).squaredNorm();
+		v += w2_ * (gradZ - preGradZ_).squaredNorm();
 
 		Eigen::Map<Eigen::VectorXd> Gradient(g, Vnum_ * 3, 1);
 		Gradient.setZero();
@@ -190,16 +184,17 @@ namespace func_opt
 			}
 		}
 
-		////梯度坐标差的梯度
-		//Eigen::VectorXd tempX = Gradt_ * (gradX - preGradX_);
-		//Eigen::VectorXd tempY = Gradt_ * (gradY - preGradY_);
-		//Eigen::VectorXd tempZ = Gradt_ * (gradZ - preGradZ_);
-		//for (int i = 0; i < curV.cols(); ++i)
-		//{
-		//	Gradient(i * 3) += 2 * w2_ * tempX(i);
-		//	Gradient(i * 3 + 1) += 2 * w2_ * tempY(i);
-		//	Gradient(i * 3 + 2) += 2 * w2_ * tempZ(i);
-		//}
+		//梯度坐标差的梯度
+		VectorType tempX(Gradt_ * gradX);
+		VectorType tempY(Gradt_ * gradY);
+		VectorType tempZ(Gradt_ * gradZ);
+
+		for (int i = 0; i < curV.cols(); ++i)
+		{
+			Gradient(i * 3) += 2.0 * w2_ * tempX(i);
+			Gradient(i * 3 + 1) += 2.0 * w2_ * tempY(i);
+			Gradient(i * 3 + 2) += 2.0 * w2_ * tempZ(i);
+		}
 
 		//边界项
 		for (int i = 0; i < boundV_.size(); ++i)
@@ -210,57 +205,57 @@ namespace func_opt
 				Gradient(boundV_[i] * 3 + k) += 2 * w3_ * temp(k);
 		}
 
-		//preGradX_ = gradX;
-		//preGradY_ = gradY;
-		//preGradZ_ = gradZ;
+		preGradX_ = gradX;
+		preGradY_ = gradY;
+		preGradZ_ = gradZ;
 		//std::cout << Gradient << std::endl;
 		return 0;
 	}
 
 	int my_function::hes(const double* x, Eigen::SparseMatrix<double>& h)
 	{
-		//{
-		//	std::vector<Tri> tripletH;
-		//	for (size_t i = 0; i < interV_.size(); i++)
-		//	{
-		//		const double K = vAngles_(interV_[i]) - 2.0 * M_PI;
-		//		const double K2e = (K * K + eps_);
-		//		const double temp = normtype_ ? eps_ / sqrt(K2e * K2e * K2e) : 2 * eps_ * (eps_ - 3 * K * K) / (K2e * K2e * K2e);
+		{
+			std::vector<Tri> tripletH;
+			for (size_t i = 0; i < interV_.size(); i++)
+			{
+				const double K = vAngles_(interV_[i]) - 2.0 * M_PI;
+				const double K2e = (K * K + eps_);
+				const double temp = normtype_ ? eps_ / sqrt(K2e * K2e * K2e) : 2 * eps_ * (eps_ - 3 * K * K) / (K2e * K2e * K2e);
 
-		//		const VectorType& gc(Gau_.col(interV_[i]));
-		//		Eigen::MatrixXd H = w1_ * temp * gc * gc.transpose();
+				const VectorType& gc(Gau_.col(interV_[i]));
+				Eigen::MatrixXd H = w1_ * temp * gc * gc.transpose();
 
-		//		for (int j = 0; j < H.cols(); ++j)
-		//		{
-		//			for (int k = 0; k < H.rows(); ++k)
-		//			{
-		//				if (H(k, j) != 0)
-		//				{
-		//					tripletH.push_back(Tri(k, j, H(k, j)));
-		//				}
-		//			}
-		//		}
-		//	}
+				for (int j = 0; j < H.cols(); ++j)
+				{
+					for (int k = 0; k < H.rows(); ++k)
+					{
+						if (H(k, j) != 0)
+						{
+							tripletH.push_back(Tri(k, j, H(k, j)));
+						}
+					}
+				}
+			}
 
-		//	for (int i = 0; i < GtG_.outerSize(); ++i)
-		//	{
-		//		for (Eigen::SparseMatrix<DataType>::InnerIterator it(GtG_, i); it; ++it)
-		//		{
-		//			tripletH.push_back(Tri(it.row(), it.col(), 2 * w2_ * it.value()));
-		//		}
-		//	}
+			for (int i = 0; i < GtG_.outerSize(); ++i)
+			{
+				for (Eigen::SparseMatrix<DataType>::InnerIterator it(GtG_, i); it; ++it)
+				{
+					tripletH.push_back(Tri(it.row(), it.col(), 2 * w2_ * it.value()));
+				}
+			}
 
-		//	for (size_t i = 0; i < boundV_.size(); ++i)
-		//	{
-		//		tripletH.push_back(Tri(i * 3, i * 3, 2 * w3_));
-		//		tripletH.push_back(Tri(i * 3 + 1, i * 3 + 1, 2 * w3_));
-		//		tripletH.push_back(Tri(i * 3 + 2, i * 3 + 2, 2 * w3_));
-		//	}
+			for (size_t i = 0; i < boundV_.size(); ++i)
+			{
+				tripletH.push_back(Tri(i * 3, i * 3, 2 * w3_));
+				tripletH.push_back(Tri(i * 3 + 1, i * 3 + 1, 2 * w3_));
+				tripletH.push_back(Tri(i * 3 + 2, i * 3 + 2, 2 * w3_));
+			}
 
-		//	h.resize(dim(), dim());
-		//	h.setFromTriplets(tripletH.begin(), tripletH.end());
-		//	//std::cout << h << std::endl;
-		//}
+			h.resize(dim(), dim());
+			h.setFromTriplets(tripletH.begin(), tripletH.end());
+			//std::cout << h << std::endl;
+		}
 
 		if (h.nonZeros() == 0)
 		{
@@ -379,10 +374,12 @@ namespace func_opt
 							for (size_t kj = 0; kj < 3; ++kj)
 							{
 								*nch_ptr_cache_[nch_count++] += H(i3 + ki, j3 + kj);
+								H(i3 + ki, j3 + kj) = 0;
 							}
 						}
 					}
 				}
+				//std::cout << H << std::endl;
 			}
 
 			//for (int i = 0; i < GtG_.outerSize(); ++i)
@@ -559,9 +556,9 @@ namespace func_opt
 
 			for (int j = 0; j < 3; ++j)
 			{
-				for (int k = 0; k < 3; ++k)
+				if (interVidx_(fv[j]) != -1)
 				{
-					if (interVidx_(fv[j]) != -1)
+					for (int k = 0; k < 3; ++k)
 					{
 						tripleF.push_back(Tri(fv[j] * 3 + k, i * 3 + k, 1));
 					}
@@ -628,8 +625,8 @@ namespace func_opt
 			const PosVector v02 = V.col(fv[0]) - V.col(fv[2]);
 			const PosVector v10 = V.col(fv[1]) - V.col(fv[0]);
 			const PosVector n = v21.cross(v02);
-			const double dblA = n.norm();
-			PosVector u = n / dblA;
+			const double dblA = n.norm() / 2;
+			PosVector u = n / (2 * dblA);
 
 			PosVector B10 = u.cross(v10);
 			B10.normalize();
