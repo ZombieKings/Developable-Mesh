@@ -267,3 +267,4 @@ __pycache__/
 /CMakeSettings.json
 /src/mesh_io.cpp
 /src/mesh_io.h
+/src/vtk.h

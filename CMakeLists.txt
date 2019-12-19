@@ -22,6 +22,9 @@ include(${VTK_USE_FILE})
 #alglib
 include_directories("$ENV{Alglib_DIR}/inc")
 
+#Mosek
+include_directories("$ENV{MOSEK_DIR}/h")
+
 add_executable(Interpolation "src/Interpolation/interpolation.cpp" "src/Interpolation/interpolation.h")
 target_link_libraries(Interpolation debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
 target_link_libraries(Interpolation optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
@@ -73,6 +76,7 @@ target_link_libraries(TestObject Eigen3::Eigen)
 target_link_libraries(TestObject ${VTK_LIBRARIES})
 target_link_libraries(TestObject debug "$ENV{Alglib_DIR}/lib/alglib_debug.lib" )
 target_link_libraries(TestObject optimized  "$ENV{Alglib_DIR}/lib/alglib_release.lib")
+target_link_libraries(TestObject "$ENV{MOSEK_DIR}/bin/mosek9_1.lib")
 
 add_executable(DifferMat "src/DifferentiationMatrix.cpp")
 target_link_libraries(DifferMat debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
@@ -103,8 +107,16 @@ target_link_libraries(LBFGS ${VTK_LIBRARIES})
 target_link_libraries(LBFGS debug "$ENV{Alglib_DIR}/lib/alglib_debug.lib" )
 target_link_libraries(LBFGS optimized  "$ENV{Alglib_DIR}/lib/alglib_release.lib")
 
-add_executable(ADMM "src/ADMM/ADMM.cpp" "src/ADMM/ADMM.h")
+add_executable(ADMM "src/ADMM/ADMM.cpp" "src/ADMM/ADMM.h" "src/ADMM/mosek_solver.h")
 target_link_libraries(ADMM debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
 target_link_libraries(ADMM optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
 target_link_libraries(ADMM Eigen3::Eigen)
 target_link_libraries(ADMM ${VTK_LIBRARIES})
+target_link_libraries(ADMM "$ENV{MOSEK_DIR}/bin/mosek9_1.lib")
+
+add_executable(QP "src/QP/QP.cpp" "src/QP/QP.h" "src/QP/mosek_solver.h")
+target_link_libraries(QP debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(QP optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(QP Eigen3::Eigen)
+target_link_libraries(QP ${VTK_LIBRARIES})
+target_link_libraries(QP "$ENV{MOSEK_DIR}/bin/mosek9_1.lib")

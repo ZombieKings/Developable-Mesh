@@ -1,6 +1,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <iostream>
+#include <windows.h>
 
 #include "optimization.h"
 #include "func_opt.h"
@@ -56,13 +57,22 @@ void visualize_mesh(vtkRenderer* Renderer, const Eigen::Matrix3Xd& V, const Eige
 
 int main(int argc, char** argv)
 {
-	//surface_mesh::Surface_mesh mesh;
-	//if (!mesh.read(argv[1]))
-	//{
-	//	std::cout << "Laod failed!" << std::endl;
-	//}
-	//std::cout << mesh.n_vertices() << std::endl;
-	//std::cout << mesh.n_faces() << std::endl;
+	surface_mesh::Surface_mesh mesh;
+	if (!mesh.read(argv[1]))
+	{
+		std::cout << "Laod failed!" << std::endl;
+	}
+	std::cout << mesh.n_vertices() << std::endl;
+	std::cout << mesh.n_faces() << std::endl;
+	for (const auto& vit : mesh.vertices())
+	{
+		if (!mesh.is_boundary(vit))
+		{
+			mesh.compute_vertex_normal(vit);
+		}
+	}
+
+
 
 	//Eigen::VectorXi interVidx;
 	//interVidx.resize(mesh.n_vertices());
@@ -154,23 +164,74 @@ int main(int argc, char** argv)
 	//std::cout << M << std::endl;
 	//std::cout << M.nonZeros() << std::endl;
 
-	//Eigen::SparseMatrix<bool> M;
-	//std::vector<Eigen::Triplet<bool>> t;
-	//t.push_back(Eigen::Triplet<bool>(0, 0, true));
-	//t.push_back(Eigen::Triplet<bool>(0, 1, true));
-	//t.push_back(Eigen::Triplet<bool>(0, 0, true));
-	//t.push_back(Eigen::Triplet<bool>(0, 0, true));
-	//M.resize(3, 3);
+	//Eigen::SparseMatrix<double> M;
+	//int n = 3500;
+	//double wp = 0.01;
+	//std::vector<Eigen::Triplet<double>> t;
+	//for (int i = 0; i < n; ++i)
+	//{
+	//	t.push_back(Eigen::Triplet<double>(i, i, i));
+	//}
+	//M.resize(n, n);
 	//M.setFromTriplets(t.begin(), t.end());
-	//std::cout << M << std::endl;
-	//std::cout << M.row(0).sum() << std::endl;
 
-	Eigen::Vector3d d(1,1,1);
-	Eigen::Vector3d c(1,2,3);
-	std::cout << d.array() - 2.0 << std::endl;
-	std::cout << d<< std::endl;
+	//clock_t stime1 = clock();
+	//Eigen::MatrixXd I;
+	//I.setIdentity(n, n);
+	//Eigen::SparseMatrix<double> A(M + 2 * wp * I);
+	//clock_t etime1 = clock();
+	//std::cout << (etime1 - stime1) << std::endl;
+
+	//clock_t stime = clock();
+	//Eigen::SparseMatrix<double> B(M);
+	//for (int i = 0; i < n; ++i)
+	//{
+	//	B.coeffRef(i, i) += 2 * wp;
+	//}
+	//B.makeCompressed();
+	//clock_t etime = clock();
+	//std::cout << (etime - stime) << std::endl;
+
+	//Eigen::VectorXd d;
+	//d.setConstant(n, 2);
+	//clock_t stime = clock();
+	//Eigen::SparseMatrix<double> GdA(d.cwiseInverse().asDiagonal() * M);
+	//clock_t etime = clock();
+	//std::cout << (etime - stime) << std::endl;
+
+	//Eigen::VectorXd d1;
+	//d1.setConstant(n, 2);
+	//clock_t stime1 = clock();
+	//Eigen::SparseMatrix<double> B(M);
+	//for (int i = 0; i < n; ++i)
+	//{
+	//	B.coeffRef(i, i) *= d1(i);
+	//}
+	//B.makeCompressed();
+	//clock_t etime1 = clock();
+	//std::cout << (etime1 - stime1) << std::endl;
+
+	//std::cout << M << std::endl;
+	//Eigen::Vector3d d(1,1,1);
+	//Eigen::Vector3d c(1,2,3);
+	//std::cout << d.array() - 2.0 << std::endl;
+	//std::cout << d<< std::endl;
 	//std::cout << d.cwiseProduct(c).squaredNorm() << std::endl;
-	return 1;
+	//int n = 3;
+	//Eigen::MatrixXd x;
+	//x.setIdentity(3 * n, 3 * n);
+	//Eigen::VectorXd v;
+	//v.setConstant(81, 1.4);
+	//x = Eigen::Map<Eigen::MatrixXd>(v.data(), x.rows(), x.cols());
+	//std::cout << x << std::endl;
+	//Eigen::VectorXd v;
+	//Eigen::VectorXd w;
+	//v.setConstant(9, 3);
+	//w.setConstant(9, 0.5);
+	//v.cwiseProduct(w);
+	//std::cout << v.cwiseProduct(w) + v << std::endl;
+
+return 1;
 }
 
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xd& vertices_mat, Eigen::Matrix3Xi& faces_mat)

@@ -95,13 +95,6 @@ void Solve_V(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeConst mat
 	const VectorType& vecAngles, const VectorType& Areas, const Eigen::VectorXi& interVidx,
 	double wl, double wp, double rho, VectorType& Y, double& mu, MatrixType& matV);
 
-void Solve_in_For1(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeConst matAngles,
-	const VectorType& vecAngles, const VectorType& Areas, const Eigen::VectorXi& interVidx,
-	double wl, double wp, double rho, VectorType& Y, double& mu, MatrixType& matV);
-void Solve_in_For2(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeConst matAngles,
-	const VectorType& vecAngles, const VectorType& Areas, const Eigen::MatrixXd& wNNT,
-	const Eigen::VectorXi& interVidx, double wl, double wn, double wp, double rho, VectorType& Y, double& mu, MatrixType& matV);
-
 int Solve_with_Mosek_For1(MatrixType& V, const Eigen::Matrix3Xi& F, const std::vector<int> interV,
 	const Eigen::VectorXi& interVidx, MatrixTypeConst& mAngles, const VectorType& vAngles,
 	const VectorType& areas, double wl, double wp);

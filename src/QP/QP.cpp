@@ -1,4 +1,4 @@
-#include "ADMM.h"
+#include "QP.h"
 #include "mosek_solver.h"
 
 #define MAXIT 50
@@ -7,13 +7,9 @@
 bool cvgflag_ = false;
 unsigned int counter_ = 0;
 
-const double rho_ = 2.0;
 double wl_ = 1.0;
 double wn_ = 1.0;
 double wp_ = 1.0;
-
-double mu_ = 1;
-VectorType Y_;
 
 std::vector<int> interV_;
 std::vector<int> boundV_;
@@ -35,15 +31,12 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 	{
 		//Eigen::Map<VectorType>vecV(matV_.data(), matV_.cols() * 3, 1);
 		//MatrixType preV(matV_);
-		//Solve_in_For1(vecV, matF_, matAngles_, vecAngles_, areas_, interVidx_, wl_, wp_, rho_, Y_, mu_, matV_);
-		//Solve_in_For2(vecV, matF_, matAngles_, vecAngles_, areas_, woriNToriN_, interVidx_, wl_, wn_, wp_, rho_, Y_, mu_, matV_);
 		if (!Solve_with_Mosek_For4(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, woriNToriN_, wn_, wp_))
 			std::cout << "Solve failed !!!" << std::endl;
-
-		//if (!Solve_with_Mosek_For4(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, woriNToriN_, wn_, wp_))
+		//if (!Solve_with_Mosek_For1(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, wl_, wp_))
 		//	std::cout << "Solve failed !!!" << std::endl;
+		
 		std::cout << "----------------------" << std::endl;
-		std::cout << mu_ << std::endl;
 		std::cout << "第" << counter_++ << "次迭代，最大误差为： " << cal_error(vecAngles_, interV_, 1) << "，平均误差为： " << cal_error(vecAngles_, interV_, 0) << std::endl;
 		
 		//if ((preV - matV_).norm() <= MINDX)
@@ -622,139 +615,6 @@ void Solve_V(const VectorType& V, const SparseMatrixType& GdA, const SparseMatri
 	}
 	VectorType temp(solver.solve(Rhs));
 	matV = Eigen::Map<MatrixType>(temp.data(), matV.rows(), matV.cols());
-}
-
-void Solve_in_For1(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeConst matAngles,
-	const VectorType& vecAngles, const VectorType& Areas, const Eigen::VectorXi& interVidx,
-	double wl, double wp, double rho, VectorType& Y, double& mu, MatrixType& matV)
-{
-	SparseMatrixType G;
-	cal_gaussian_gradient(matV, F, interVidx, matAngles, G);
-	SparseMatrixType GdA(Areas.cwiseInverse().asDiagonal() * G);
-	for (int i = 0; i < G.outerSize(); ++i)
-	{
-		for (Eigen::SparseMatrix<double>::InnerIterator it(G, i); it; ++it)
-		{
-			it.valueRef() /= Areas(it.row());
-		}
-	}
-
-	//solve C
-	VectorType GdAV(GdA * V);
-	VectorType theta(2.0 * M_PI - vecAngles.array());
-	VectorType b(Areas.cwiseProduct(theta) + GdAV);
-	VectorType TempV(-GdAV + b - Y / mu);
-	VectorType C;
-	C.resize(TempV.size());
-	for (int i = 0; i < C.size(); ++i)
-	{
-		C(i) = shrink(TempV(i), 1.0 / mu);
-	}
-
-	//solve V
-	SparseMatrixType L;
-	cal_cot_laplace(F, matAngles, Areas, interVidx, L);
-	SparseMatrixType GdAt = GdA.transpose();
-	SparseMatrixType wLtL(2 * wl * L.transpose() * L);
-	SparseMatrixType A(mu * GdAt * GdA + wLtL);
-	double wp2 = wp * 2;
-	for (int i = 0; i < V.size(); ++i)
-	{
-		A.coeffRef(i, i) += wp2;
-	}
-	A.makeCompressed();
-	VectorType Rhs(GdAt * (-Y + mu * (-C + b)) + wLtL * orivecV_ + 2 * wp * orivecV_);
-
-	////solve V with uniform Laplasian
-	//SparseMatrixType GdAt = GdA.transpose();
-	//SparseMatrixType A(mu * GdAt * GdA + woriLtoriL_);
-	//double wp2 = wp * 2;
-	////for (int i = 0; i < V.size(); ++i)
-	////{
-	////	A.coeffRef(i, i) += wp2;
-	////}
-	////VectorType Rhs(GdAt * (-Y + mu * (-C + b)) + woriLtoriL_ * orivecV_ + 2 * wp * orivecV_);
-	//VectorType Rhs(GdAt * (-Y + mu * (-C + b)) + woriLtoriL_ * orivecV_);
-	//for (size_t i = 0; i < boundV_.size(); ++i)
-	//{
-	//	A.coeffRef(boundV_[i], boundV_[i]) += wp2;
-	//	for (int j = 0; j < 3; ++j)
-	//	{
-	//		Rhs(boundV_[i] * 3 + j) = 2 * wp * orivecV_(boundV_[i] * 3 + j);
-	//	}
-	//}
-	//A.makeCompressed();
-
-	Eigen::SimplicialLDLT<SparseMatrixType> solver;
-	solver.compute(A);
-	if (solver.info() != Eigen::Success)
-	{
-		std::cout << "Solve Failed !" << std::endl;
-	}
-	VectorType temp(solver.solve(Rhs));
-	matV = Eigen::Map<MatrixType>(temp.data(), matV.rows(), matV.cols());
-
-	Y += mu * (C + GdAV - b);
-	mu *= rho;
-}
-
-void Solve_in_For2(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeConst matAngles,
-	const VectorType& vecAngles, const VectorType& Areas, const Eigen::MatrixXd& wNNT,
-	const Eigen::VectorXi& interVidx, double wl, double wn, double wp, double rho, VectorType& Y, double& mu, MatrixType& matV)
-{
-	SparseMatrixType G;
-	cal_gaussian_gradient(matV, F, interVidx, matAngles, G);
-	SparseMatrixType GdA(Areas.cwiseInverse().asDiagonal() * G);
-
-	//solve C
-	VectorType GdAV(GdA * V);
-	VectorType theta(2.0 * M_PI - vecAngles.array());
-	VectorType b(Areas.cwiseProduct(theta) + GdAV);
-	VectorType TempV(-GdAV + b - Y / mu);
-	VectorType C;
-	C.resize(TempV.size());
-	for (int i = 0; i < C.size(); ++i)
-	{
-		C(i) = shrink(TempV(i), 1.0 / mu);
-	}
-
-	//solve V
-	SparseMatrixType L;
-	cal_cot_laplace(F, matAngles, Areas, interVidx, L);
-	//cal_uni_laplace(F, matAngles.cols(), interVidx, L);
-	SparseMatrixType wLtL(2 * wl * L.transpose() * L);
-	SparseMatrixType GdAt = GdA.transpose();
-	SparseMatrixType A(mu * GdAt * GdA + wNNT + wLtL);
-	double wp2 = wp * 2;
-	VectorType Rhs(GdAt * (-Y + mu * (-C + b)) + wNNT * orivecV_ + wp2 * orivecV_);
-	for (int i = 0; i < V.size(); ++i)
-	{
-		A.coeffRef(i, i) += wp2;
-	}
-	A.makeCompressed();
-
-	//VectorType Rhs(GdAt * (-Y + mu * (-C + b)) + wNNT * orivecV_ );
-	//for (size_t i = 0; i < boundV_.size(); ++i)
-	//{
-	//	A.coeffRef(boundV_[i], boundV_[i]) += wp2;
-	//	for (int j = 0; j < 3; ++j)
-	//	{
-	//		Rhs(boundV_[i] * 3 + j) = 2 * wp * orivecV_(boundV_[i] * 3 + j);
-	//	}
-	//}
-	//A.makeCompressed();
-
-	Eigen::SimplicialLDLT<SparseMatrixType> solver;
-	solver.compute(A);
-	if (solver.info() != Eigen::Success)
-	{
-		std::cout << "Solve Failed !" << std::endl;
-	}
-	VectorType temp(solver.solve(Rhs));
-	matV = Eigen::Map<MatrixType>(temp.data(), matV.rows(), matV.cols());
-
-	Y += mu * (C + GdAV - b);
-	mu *= rho;
 }
 
 int Solve_with_Mosek_For1(MatrixType& V, const Eigen::Matrix3Xi& F, const std::vector<int> interV,

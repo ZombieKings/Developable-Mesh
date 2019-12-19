@@ -196,10 +196,9 @@ void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::M
 {
 	F.resize(3, mesh.n_faces());
 	V.resize(3, mesh.n_vertices());
-	
+
 	Eigen::VectorXi flag;
-	
-	flag.setConstant(mesh.n_vertices());
+	flag.setConstant(mesh.n_vertices(), -1);
 	for (auto fit : mesh.faces())
 	{
 		int i = 0;
