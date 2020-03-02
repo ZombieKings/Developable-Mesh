@@ -58,6 +58,7 @@ typedef Eigen::VectorXd VectorType;
 typedef Eigen::Matrix3Xd MatrixType;
 typedef Eigen::SparseMatrix<DataType> SparseMatrixType;
 typedef const Eigen::Matrix3Xd MatrixTypeConst;
+typedef Eigen::SimplicialLDLT<SparseMatrixType> SolverType;
 
 inline bool scoeff(std::vector<Tri>& target_matrix, const PosVector& input_vector, size_t row_, size_t col_)
 {
@@ -79,38 +80,26 @@ inline bool srhs(VectorType& b, const PosVector& input_vector, size_t idx)
 	return true;
 }
 
-void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix3Xi& F);
+void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix3Xi& F, Eigen::Matrix2Xi& E);
 void cal_angles(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, VectorType& vecAngles);
 void cal_angles_and_areas(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& interVidx, MatrixType& matAngles, VectorType& vecAngles, VectorType& areas);
 void cal_normals(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& interVidx, VectorType& Normals);
 void cal_gaussian_gradient(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& interVidx, MatrixTypeConst& mAngles, SparseMatrixType& mGradient);
 void cal_cot_laplace(const Eigen::Matrix3Xi& F, MatrixTypeConst& mAngles, const VectorType& areas, const Eigen::VectorXi& interVidx, SparseMatrixType& L);
 void cal_uni_laplace(const Eigen::Matrix3Xi& F, int Vnum, const Eigen::VectorXi& interVidx, SparseMatrixType& L);
-double shrink(double x, double tau);
-void build_tri_coeff(const Eigen::Matrix3Xi& F, int Vnum, SparseMatrixType& A1, SparseMatrixType& A2, SparseMatrixType& A3);
-void build_tri_coeff(const Eigen::Matrix3Xi& F, int Vnum, SparseMatrixType& A);
 
-void Solve_C(const VectorType& GdAV, const VectorType& b, const VectorType& Y, double mu, VectorType& C);
-void Solve_V(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeConst matAngles,
-	const VectorType& vecAngles, const VectorType& Areas, const Eigen::VectorXi& interVidx,
-	double wl, double wp, double rho, VectorType& Y, double& mu, MatrixType& matV);
+void precompute_A(int Vnum, const Eigen::Matrix2Xi& E, const Eigen::VectorXi& interVidx, const std::vector<int>& boundV, Eigen::SimplicialLDLT<SparseMatrixType>& solver, SparseMatrixType& At);
+void compute_scale(int Vnum, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, MatrixTypeConst& mAngles,
+	const VectorType& vecAngles, const VectorType& areas, const Eigen::VectorXi& interVidx, const std::vector<int>& boundV, VectorType& s);
+void update_vertices(SolverType& solver, const SparseMatrixType& At, MatrixType& V, const Eigen::Matrix2Xi& E,
+	const Eigen::VectorXi& interVidx, const std::vector<int>& boundV, const VectorType& length);
 
-void Solve_in_For1(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeConst matAngles,
-	const VectorType& vecAngles, const VectorType& Areas, const Eigen::VectorXi& interVidx,
-	double wl, double wp, double rho, VectorType& Y, double& mu, MatrixType& matV);
-void Solve_in_For2(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeConst matAngles,
-	const VectorType& vecAngles, const VectorType& Areas, const Eigen::MatrixXd& wNNT,
-	const Eigen::VectorXi& interVidx, double wl, double wn, double wp, double rho, VectorType& Y, double& mu, MatrixType& matV);
-void Solve_in_For3(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeConst matAngles,
-	const VectorType& vecAngles, const VectorType& Areas, const Eigen::VectorXi& interVidx,
-	double wl, double wn, double wp, double rho, VectorType& Y, double& mu, MatrixType& matV);
+void Solve(SolverType& solver, const SparseMatrixType& At, MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F,
+	MatrixTypeConst& matAngles, const VectorType& vecAngles, const VectorType& areas, const Eigen::VectorXi& interVidx, const std::vector<int>& boundV);
 
 void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
 double cal_error(const VectorType& vAngles, const std::vector<int>& interIdx, int flag);
 
 void matrix2vtk(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, vtkPolyData* P);
-void matrix2vtk_normal(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixTypeConst& N, vtkPolyData* P);
 void MakeLUT(vtkDoubleArray* Scalar, vtkLookupTable* LUT);
-void MakeNormalGlyphs(vtkPolyData* src, vtkGlyph3D* glyph);
 void visualize_mesh(vtkRenderer* Renderer, MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const VectorType& angles, const Eigen::VectorXi& interVidx);
-void visualize_mesh_with_normal(vtkRenderer* Renderer, MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixTypeConst& N);

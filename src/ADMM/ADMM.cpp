@@ -1,7 +1,7 @@
 #include "ADMM.h"
 #include "mosek_solver.h"
 
-#define MAXIT 50
+#define MAXIT 500
 #define MINDX 0.01
 
 bool cvgflag_ = false;
@@ -9,10 +9,11 @@ unsigned int counter_ = 0;
 
 const double rho_ = 2.0;
 double wl_ = 1.0;
-double wn_ = 1.0;
+double wn_ = 0.001;
 double wp_ = 1.0;
+double wt_ = 0.001;
 
-double mu_ = 1;
+double mu_ = 1e3;
 VectorType Y_;
 
 std::vector<int> interV_;
@@ -22,7 +23,10 @@ Eigen::Matrix3Xi matF_;
 VectorType orivecV_;
 SparseMatrixType oriL_;
 SparseMatrixType woriLtoriL_;
+SparseMatrixType wTtT_;
 Eigen::MatrixXd woriNToriN_;
+SparseMatrixType Coeff_;
+VectorType CoefforiV_;
 MatrixType matV_;
 
 VectorType vecAngles_;
@@ -33,15 +37,12 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 {
 	if (counter_ < MAXIT && cvgflag_ == false)
 	{
-		//Eigen::Map<VectorType>vecV(matV_.data(), matV_.cols() * 3, 1);
+		Eigen::Map<VectorType>vecV(matV_.data(), matV_.cols() * 3, 1);
 		//MatrixType preV(matV_);
 		//Solve_in_For1(vecV, matF_, matAngles_, vecAngles_, areas_, interVidx_, wl_, wp_, rho_, Y_, mu_, matV_);
 		//Solve_in_For2(vecV, matF_, matAngles_, vecAngles_, areas_, woriNToriN_, interVidx_, wl_, wn_, wp_, rho_, Y_, mu_, matV_);
-		if (!Solve_with_Mosek_For4(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, woriNToriN_, wn_, wp_))
-			std::cout << "Solve failed !!!" << std::endl;
+		Solve_in_For3(vecV, matF_, matAngles_, vecAngles_, areas_, interVidx_, wl_, wn_, wp_, rho_, Y_, mu_, matV_);
 
-		//if (!Solve_with_Mosek_For4(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, woriNToriN_, wn_, wp_))
-		//	std::cout << "Solve failed !!!" << std::endl;
 		std::cout << "----------------------" << std::endl;
 		std::cout << mu_ << std::endl;
 		std::cout << "第" << counter_++ << "次迭代，最大误差为： " << cal_error(vecAngles_, interV_, 1) << "，平均误差为： " << cal_error(vecAngles_, interV_, 0) << std::endl;
@@ -109,17 +110,34 @@ int main(int argc, char** argv)
 	mesh2matrix(mesh, matV_, matF_);
 	cal_angles_and_areas(matV_, matF_, interVidx_, matAngles_, vecAngles_, areas_);
 	MatrixType oriV(matV_);
+	VectorType oriA(vecAngles_);
 	orivecV_ = Eigen::Map<VectorType>(oriV.data(), oriV.cols() * 3, 1);
 	//cal_cot_laplace(matF_, matAngles_, areas_, interVidx_, oriL_);
-	//cal_uni_laplace(matF_, matV_.cols(), interVidx_, oriL_);
+	////cal_uni_laplace(matF_, matV_.cols(), interVidx_, oriL_);
 	//woriLtoriL_ = wl_ * oriL_.transpose() * oriL_;
-	VectorType oriA(vecAngles_);
+	//SparseMatrixType T;
+	//build_tri_coeff(matF_, matV_.cols(), T);
+	//wTtT_ = wt_ * T.transpose() * T;
+	//VectorType oriNormals;
+	//cal_normals(oriV, matF_, interVidx_, oriNormals);
+	////MatrixType N = Eigen::Map<MatrixType>(oriNormals.data(), 3, matV_.cols());
+	////woriNToriN_ = 2 * wn_ * oriNormals * oriNormals.transpose();
+	//woriNToriN_ = wn_ * oriNormals * oriNormals.transpose();
+
+	SparseMatrixType T;
+	build_tri_coeff(matF_, matV_.cols(), T);
+	SparseMatrixType wTtT = wt_ * T.transpose() * T;
 	VectorType oriNormals;
 	cal_normals(oriV, matF_, interVidx_, oriNormals);
-	//MatrixType N = Eigen::Map<MatrixType>(oriNormals.data(), 3, matV_.cols());
-	//woriNToriN_ = 2 * wn_ * oriNormals * oriNormals.transpose();
-	woriNToriN_ = wn_ * oriNormals * oriNormals.transpose();
-	//Y_.setConstant(matV_.cols(), 0);
+	Eigen::MatrixXd wNTN = wn_ * oriNormals * oriNormals.transpose();
+	Coeff_ = (2.0 * (wTtT + wNTN));
+	CoefforiV_ = Coeff_ * orivecV_;
+
+	//Eigen::MatrixXd I(matV_.cols() * 3, matV_.cols() * 3);
+	//I.setIdentity();
+	//Coeff_ = (2.0 * (woriLtoriL_ + I));
+	//CoefforiV_ = Coeff_ * orivecV_;
+	Y_.setConstant(matV_.cols(), 0);
 
 	std::cout << "初始最大误差： " << cal_error(vecAngles_, interV_, 1) << std::endl;
 	std::cout << "初始平均误差： " << cal_error(vecAngles_, interV_, 0) << std::endl;
@@ -134,94 +152,22 @@ int main(int argc, char** argv)
 	//VectorType b(areas_.cwiseProduct(theta) + GdAV);
 	//VectorType C;
 	//Solve_C(GdAV, b, Y_, mu_, C);
-
 	//SparseMatrixType L;
 	//cal_cot_laplace(matF_, matAngles_, areas_, interVidx_, L);
 	//Solve_V(vecV, GdA, L, b, Y_, C, mu_, wl_, wp_, matV_);
-
 	//Y_ += mu_ * (C + GdAV - b);
 	//mu_ *= rho_;
-
-	////----------Mosek------------
-	//int Vnum_ = matV_.cols();
-	//int Vnum2_ = matV_.cols() * 2;
-	//int Vnum3_ = matV_.cols() * 3;
-	//int Vnum4_ = matV_.cols() * 4;
-	//Eigen::Map<VectorType>vecV(matV_.data(), Vnum3_, 1);
-	//SparseMatrixType G;
-	//cal_gaussian_gradient(matV_, matF_, interVidx_, matAngles_, G);
-	//Eigen::MatrixXd I;
-	//I.setIdentity(Vnum3_, Vnum3_);
-	//SparseMatrixType L;
-	//cal_cot_laplace(matF_, matAngles_, areas_, interVidx_, L);
-	//SparseMatrixType LTLI(wl_ * L.transpose() * L + wp_ * I);
-	//SparseMatrixType Q(LTLI);
-	//Q.conservativeResize(Vnum4_, Vnum4_);
-	//for (int i = 0; i < Vnum3_; ++i)
-	//{
-	//	Q.coeffRef(i, i) *= 2.0;
-	//}
-	//SparseMatrixType QI(Q);
-	//for (int i = 0; i < Vnum_; ++i)
-	//{
-	//	QI.coeffRef(Vnum3_ + i, Vnum3_ + i) = 1.0;
-	//}
-	//Q.makeCompressed();
-	//QI.makeCompressed();
-	//VectorType orivecV0;
-	//orivecV0.setConstant(Vnum4_, 0);
-	//orivecV0.topRows(orivecV_.size()) = orivecV_;
-	//VectorType cl = 2.0 * orivecV0.transpose() * QI;
-	//double cf = orivecV_.transpose() * LTLI * orivecV_;
-
-	//std::vector<Tri> TriA;
-	//for (int i = 0; i < G.outerSize(); ++i)
-	//{
-	//	for (Eigen::SparseMatrix<double>::InnerIterator it(G, i); it; ++it)
-	//	{
-	//		TriA.push_back(Tri(it.row(), it.col(), -it.value() / areas_(it.row())));
-	//		TriA.push_back(Tri(it.row() + G.rows(), it.col(), it.value() / areas_(it.row())));
-	//	}
-	//}
-	//for (int i = 0; i < Vnum_; ++i)
-	//{
-	//	TriA.push_back(Tri(i, G.cols() + i, 1));
-	//	TriA.push_back(Tri(G.rows() + i, G.cols() + i, 1));
-	//}
-	//SparseMatrixType A;
-	//A.resize(Vnum2_, Vnum4_);
-	//A.setFromTriplets(TriA.begin(), TriA.end());
-
-	//VectorType GV(G * vecV);
-	//VectorType b;
-	//b.setConstant(Vnum_, 0);
-	//for (size_t i = 0; i < interV_.size(); ++i)
-	//{
-	//	b(interV_[i]) = (2.0 * M_PI - vecAngles_(interV_[i]) + GV(interV_[i])) / areas_[interV_[i]];
-	//}
-	//VectorType bb;
-	//bb.resize(Vnum2_, 1);
-	//bb.topRows(Vnum_) = b;
-	//bb.bottomRows(Vnum_) = b;
-
-	//mosek_solver solver(Q, A, cl, -bb, Vnum4_, cf);
-	//VectorType result;
-	//if (!solver.solve()) 
-	//{
-	//	result = Eigen::Map<VectorType>(solver.get_result(), orivecV_.size(), 1);
-	//	//std::cout << result << std::endl;
-	//}
-	//matV_ = Eigen::Map<MatrixType>(result.data(), 3, Vnum_);
-	//cal_angles(matV_, matF_, vecAngles_);
-
-	//int itn = 1;
-	//for (int i = 0; i < itn; ++i)
-	//{
-	//	//Solve_with_Mosek_For1(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, wl_, wp_);
-	//	Solve_with_Mosek_For4(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, woriNToriN_, wn_, wp_);
-	//}
-
 	//cal_angles_and_areas(matV_, matF_, interVidx_, matAngles_, vecAngles_, areas_);
+
+	//for (int i = 0; i < MAXIT; ++i)
+	//{
+	//	VectorType vecV = Eigen::Map<VectorType>(matV_.data(), matV_.cols() * 3, 1);
+	//	Solve_in_For3(vecV, matF_, matAngles_, vecAngles_, areas_, interVidx_, wl_, wn_, wp_, rho_, Y_, mu_, matV_);
+	//	std::cout << "----------------------" << std::endl;
+	//	std::cout << mu_ << std::endl;
+	//	std::cout << "第" << counter_++ << "次迭代，最大误差为： " << cal_error(vecAngles_, interV_, 1) << "，平均误差为： " << cal_error(vecAngles_, interV_, 0) << std::endl;
+	//	cal_angles_and_areas(matV_, matF_, interVidx_, matAngles_, vecAngles_, areas_);
+	//}
 
 	//---------------可视化---------------
 	//创建窗口
@@ -719,12 +665,12 @@ void Solve_in_For2(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeCon
 	}
 
 	//solve V
-	SparseMatrixType L;
-	cal_cot_laplace(F, matAngles, Areas, interVidx, L);
-	//cal_uni_laplace(F, matAngles.cols(), interVidx, L);
-	SparseMatrixType wLtL(2 * wl * L.transpose() * L);
+	//SparseMatrixType L;
+	//cal_cot_laplace(F, matAngles, Areas, interVidx, L);
+	////cal_uni_laplace(F, matAngles.cols(), interVidx, L);
+	//SparseMatrixType wLtL(2 * wl * L.transpose() * L);
 	SparseMatrixType GdAt = GdA.transpose();
-	SparseMatrixType A(mu * GdAt * GdA + wNNT + wLtL);
+	SparseMatrixType A(mu * GdAt * GdA + wNNT + 2.0 * woriLtoriL_);
 	double wp2 = wp * 2;
 	VectorType Rhs(GdAt * (-Y + mu * (-C + b)) + wNNT * orivecV_ + wp2 * orivecV_);
 	for (int i = 0; i < V.size(); ++i)
@@ -755,6 +701,44 @@ void Solve_in_For2(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeCon
 
 	Y += mu * (C + GdAV - b);
 	mu *= rho;
+}
+
+void Solve_in_For3(const VectorType& V, const Eigen::Matrix3Xi& F, MatrixTypeConst matAngles,
+	const VectorType& vecAngles, const VectorType& Areas,
+	const Eigen::VectorXi& interVidx, double wl, double wn, double wp, double rho, VectorType& Y, double& mu, MatrixType& matV)
+{
+	SparseMatrixType G;
+	cal_gaussian_gradient(matV, F, interVidx, matAngles, G);
+	SparseMatrixType GdA(Areas.cwiseInverse().asDiagonal() * G);
+
+	//solve C
+	VectorType GdAV(GdA * V);
+	VectorType theta(2.0 * M_PI - vecAngles.array());
+	VectorType b(Areas.cwiseProduct(theta) + GdAV);
+	VectorType TempV(-GdAV + b - Y / mu);
+	VectorType C;
+	C.resize(TempV.size());
+	for (int i = 0; i < C.size(); ++i)
+	{
+		C(i) = shrink(TempV(i), 1.0 / mu);
+	}
+
+	//solve V
+	SparseMatrixType GdAt = GdA.transpose();
+	SparseMatrixType A(mu * GdAt * GdA + Coeff_);
+	VectorType Rhs(GdAt * (-Y + mu * (-C + b)) + CoefforiV_);
+
+	Eigen::SimplicialLDLT<SparseMatrixType> solver;
+	solver.compute(A);
+	if (solver.info() != Eigen::Success)
+	{
+		std::cout << "Solve Failed !" << std::endl;
+	}
+	VectorType temp(solver.solve(Rhs));
+	matV = Eigen::Map<MatrixType>(temp.data(), matV.rows(), matV.cols());
+
+	Y += mu * (C + GdAV - b);
+	//mu *= rho;
 }
 
 int Solve_with_Mosek_For1(MatrixType& V, const Eigen::Matrix3Xi& F, const std::vector<int> interV,

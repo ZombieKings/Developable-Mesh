@@ -120,3 +120,18 @@ target_link_libraries(QP optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_rele
 target_link_libraries(QP Eigen3::Eigen)
 target_link_libraries(QP ${VTK_LIBRARIES})
 target_link_libraries(QP "$ENV{MOSEK_DIR}/bin/mosek9_1.lib")
+
+add_executable(PlanB "src/PlanB/PlanB.cpp" "src/PlanB/PlanB.h" "src/PlanB/mosek_solver.h")
+target_link_libraries(PlanB debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(PlanB optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(PlanB Eigen3::Eigen)
+target_link_libraries(PlanB ${VTK_LIBRARIES})
+target_link_libraries(PlanB "$ENV{MOSEK_DIR}/bin/mosek9_1.lib")
+
+add_executable(DoF "src/DoF/DoF.cpp" "src/DoF/DoF.h")
+target_link_libraries(DoF debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(DoF optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(DoF Eigen3::Eigen)
+target_link_libraries(DoF ${VTK_LIBRARIES})
+target_link_libraries(DoF debug "$ENV{Alglib_DIR}/lib/alglib_debug.lib" )
+target_link_libraries(DoF optimized  "$ENV{Alglib_DIR}/lib/alglib_release.lib")

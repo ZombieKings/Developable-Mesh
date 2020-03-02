@@ -2,7 +2,6 @@
 #include "mosek_solver.h"
 
 #define MAXIT 50
-#define MINDX 0.01
 
 bool cvgflag_ = false;
 unsigned int counter_ = 0;
@@ -31,10 +30,10 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 	{
 		//Eigen::Map<VectorType>vecV(matV_.data(), matV_.cols() * 3, 1);
 		//MatrixType preV(matV_);
-		if (!Solve_with_Mosek_For4(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, woriNToriN_, wn_, wp_))
-			std::cout << "Solve failed !!!" << std::endl;
-		//if (!Solve_with_Mosek_For1(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, wl_, wp_))
+		//if (!Solve_with_Mosek_For4(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, woriNToriN_, wn_, wp_))
 		//	std::cout << "Solve failed !!!" << std::endl;
+		if (!Solve_with_Mosek_For1(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, wl_, wp_))
+			std::cout << "Solve failed !!!" << std::endl;
 		
 		std::cout << "----------------------" << std::endl;
 		std::cout << "第" << counter_++ << "次迭代，最大误差为： " << cal_error(vecAngles_, interV_, 1) << "，平均误差为： " << cal_error(vecAngles_, interV_, 0) << std::endl;
@@ -103,14 +102,13 @@ int main(int argc, char** argv)
 	cal_angles_and_areas(matV_, matF_, interVidx_, matAngles_, vecAngles_, areas_);
 	MatrixType oriV(matV_);
 	orivecV_ = Eigen::Map<VectorType>(oriV.data(), oriV.cols() * 3, 1);
-	//cal_cot_laplace(matF_, matAngles_, areas_, interVidx_, oriL_);
+	cal_cot_laplace(matF_, matAngles_, areas_, interVidx_, oriL_);
 	//cal_uni_laplace(matF_, matV_.cols(), interVidx_, oriL_);
-	//woriLtoriL_ = wl_ * oriL_.transpose() * oriL_;
+	woriLtoriL_ = wl_ * oriL_.transpose() * oriL_;
 	VectorType oriA(vecAngles_);
 	VectorType oriNormals;
 	cal_normals(oriV, matF_, interVidx_, oriNormals);
 	//MatrixType N = Eigen::Map<MatrixType>(oriNormals.data(), 3, matV_.cols());
-	//woriNToriN_ = 2 * wn_ * oriNormals * oriNormals.transpose();
 	woriNToriN_ = wn_ * oriNormals * oriNormals.transpose();
 	//Y_.setConstant(matV_.cols(), 0);
 
@@ -207,14 +205,14 @@ int main(int argc, char** argv)
 	//matV_ = Eigen::Map<MatrixType>(result.data(), 3, Vnum_);
 	//cal_angles(matV_, matF_, vecAngles_);
 
-	//int itn = 1;
-	//for (int i = 0; i < itn; ++i)
-	//{
-	//	//Solve_with_Mosek_For1(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, wl_, wp_);
-	//	Solve_with_Mosek_For4(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, woriNToriN_, wn_, wp_);
-	//}
+	int itn = 1;
+	for (int i = 0; i < itn; ++i)
+	{
+		Solve_with_Mosek_For1(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, wl_, wp_);
+		//Solve_with_Mosek_For4(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, woriNToriN_, wn_, wp_);
+	}
 
-	//cal_angles_and_areas(matV_, matF_, interVidx_, matAngles_, vecAngles_, areas_);
+	cal_angles_and_areas(matV_, matF_, interVidx_, matAngles_, vecAngles_, areas_);
 
 	//---------------可视化---------------
 	//创建窗口
@@ -256,13 +254,13 @@ int main(int argc, char** argv)
 	auto style = vtkInteractorStyleTrackballCamera::New();
 	interactor->SetInteractorStyle(style);
 	interactor->Initialize();
-	interactor->CreateRepeatingTimer(1000);
+	//interactor->CreateRepeatingTimer(1000);
 
-	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
-	timeCallback->SetCallback(CallbackFunction);
-	timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
+	//auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	//timeCallback->SetCallback(CallbackFunction);
+	//timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
 
-	interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
+	//interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
 
 	//开始
 	renderWindow->Render();
@@ -637,7 +635,7 @@ int Solve_with_Mosek_For1(MatrixType& V, const Eigen::Matrix3Xi& F, const std::v
 	}
 	Q.makeCompressed();
 
-	VectorType v0QI(orivecV_.transpose() * LTLI);
+	VectorType v0QI((orivecV_.transpose() * LTLI).transpose());
 	VectorType cl;
 	cl.setConstant(Vnum4, 1);
 	for (int i = 0; i < v0QI.size(); ++i)

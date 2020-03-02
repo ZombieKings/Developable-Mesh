@@ -268,3 +268,6 @@ __pycache__/
 /src/mesh_io.cpp
 /src/mesh_io.h
 /src/vtk.h
+/src/myVisualizer.cpp
+/src/LaplacianSmooth.cpp
+/src/myVisualizer.h
