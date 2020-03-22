@@ -208,8 +208,8 @@ int main(int argc, char** argv)
 	int itn = 1;
 	for (int i = 0; i < itn; ++i)
 	{
-		Solve_with_Mosek_For1(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, wl_, wp_);
-		//Solve_with_Mosek_For4(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, woriNToriN_, wn_, wp_);
+		//Solve_with_Mosek_For1(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, wl_, wp_);
+		Solve_with_Mosek_For4(matV_, matF_, interV_, interVidx_, matAngles_, vecAngles_, areas_, woriNToriN_, wn_, wp_);
 	}
 
 	cal_angles_and_areas(matV_, matF_, interVidx_, matAngles_, vecAngles_, areas_);

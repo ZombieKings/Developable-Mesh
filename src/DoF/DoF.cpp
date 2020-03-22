@@ -317,10 +317,10 @@ void cal_cot_laplace(const Eigen::Matrix3Xi& F, MatrixTypeConst& mAngles, const 
 {
 	//计算固定边界的cot权拉普拉斯系数矩阵
 	std::vector<Tri> triple;
-	for (int j = 0; j < F.cols(); ++j)
+	for (int i = 0; i < F.cols(); ++i)
 	{
-		const Eigen::Vector3i& fv = F.col(j);
-		const PosVector& ca = mAngles.col(j);
+		const Eigen::Vector3i& fv = F.col(i);
+		const PosVector& ca = mAngles.col(i);
 		for (size_t vi = 0; vi < 3; ++vi)
 		{
 			const int fv0 = fv[vi];

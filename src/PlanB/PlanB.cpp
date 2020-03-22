@@ -106,10 +106,12 @@ int main(int argc, char** argv)
 	//orivecV_ = Eigen::Map<VectorType>(oriV.data(), oriV.cols() * 3, 1);
 	//std::cout << "初始最大误差： " << cal_error(vecAngles_, interV_, 1) << std::endl;
 	//std::cout << "初始平均误差： " << cal_error(vecAngles_, interV_, 0) << std::endl;
-	precompute_A(matV_.cols(), matE_, interVidx_, boundV_, solver_, At_);
+	
+	//phi_develop_test(matV_, matF_, matAngles_, vecAngles_, areas_, interVidx_, boundV_);
 
-	Solve(solver_, At_, matV_, matE_, matF_, matAngles_, vecAngles_, areas_, interVidx_, boundV_);
-	cal_angles_and_areas(matV_, matF_, interVidx_, matAngles_, vecAngles_, areas_);
+	precompute_A(matV_.cols(), matE_, interVidx_, boundV_, solver_, At_);
+	//Solve(solver_, At_, matV_, matE_, matF_, matAngles_, vecAngles_, areas_, interVidx_, boundV_);
+	//cal_angles_and_areas(matV_, matF_, interVidx_, matAngles_, vecAngles_, areas_);
 
 	//--------------测试---------------
 
@@ -270,13 +272,13 @@ int main(int argc, char** argv)
 	auto style = vtkInteractorStyleTrackballCamera::New();
 	interactor->SetInteractorStyle(style);
 	interactor->Initialize();
-	//interactor->CreateRepeatingTimer(1000);
+	interactor->CreateRepeatingTimer(1000);
 
-	//auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
-	//timeCallback->SetCallback(CallbackFunction);
-	//timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
+	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	timeCallback->SetCallback(CallbackFunction);
+	timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
 
-	//interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
+	interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
 
 	//开始
 	renderWindow->Render();
@@ -462,10 +464,10 @@ void cal_cot_laplace(const Eigen::Matrix3Xi& F, MatrixTypeConst& mAngles, const 
 {
 	//计算固定边界的cot权拉普拉斯系数矩阵
 	std::vector<Tri> triple;
-	for (int j = 0; j < F.cols(); ++j)
+	for (int i = 0; i < F.cols(); ++i)
 	{
-		const Eigen::Vector3i& fv = F.col(j);
-		const PosVector& ca = mAngles.col(j);
+		const Eigen::Vector3i& fv = F.col(i);
+		const PosVector& ca = mAngles.col(i);
 		for (size_t vi = 0; vi < 3; ++vi)
 		{
 			const int fv0 = fv[vi];
@@ -579,6 +581,7 @@ void compute_scale(int Vnum, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& 
 		triple.push_back(Tri(i, i, 1.0));
 		b(i) = 0;
 	}
+
 	A.setFromTriplets(triple.begin(), triple.end());
 	Eigen::SimplicialLLT<SparseMatrixType> solver;
 	solver.compute(A * A.transpose());
@@ -731,3 +734,101 @@ void visualize_mesh(vtkRenderer* Renderer, MatrixTypeConst& V, const Eigen::Matr
 	Renderer->AddActor2D(scalarBar);
 }
 
+//测试求得的phi能否得到可展
+void phi_develop_test(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixTypeConst& mAngles,
+	const VectorType& vecAngles, const VectorType& areas, const Eigen::VectorXi& interVidx, const std::vector<int>& boundV)
+{
+	int Vnum = V.cols();
+	SparseMatrixType A(Vnum, Vnum);
+	VectorType b(vecAngles.array() - 2.0 * M_PI);
+	errsum_ = b.sum();
+	std::vector<Tri> triple;
+	//for (int j = 0; j < F.cols(); ++j)
+	//{
+	//	const Eigen::Vector3i& fv = F.col(j);
+	//	const PosVector& ca = mAngles.col(j);
+	//	for (size_t vi = 0; vi < 3; ++vi)
+	//	{
+	//		const int fv0 = fv[vi];
+	//		const int fv1 = fv[(vi + 1) % 3];
+	//		const int fv2 = fv[(vi + 2) % 3];
+	//		if (interVidx(fv0) != -1)
+	//		{
+	//			b(fv0) /= areas(fv0);
+	//			triple.push_back(Tri(fv0, fv0, (1.0 / std::tan(ca[(vi + 1) % 3]) + 1.0 / std::tan(ca[(vi + 2) % 3])) / (2.0 * areas(fv0))));
+	//			triple.push_back(Tri(fv0, fv1, -1.0 / std::tan(ca[(vi + 2) % 3]) / (2.0 * areas(fv0))));
+	//			triple.push_back(Tri(fv0, fv2, -1.0 / std::tan(ca[(vi + 1) % 3]) / (2.0 * areas(fv0))));
+	//		}
+	//	}
+	//}
+	//for (auto i : boundV)
+	//{
+	//	triple.push_back(Tri(i, i, 1.0));
+	//	b(i) = 1.0;
+	//}
+
+	for (int j = 0; j < F.cols(); ++j)
+	{
+		const Eigen::Vector3i& fv = F.col(j);
+		const PosVector& ca = mAngles.col(j);
+		for (size_t vi = 0; vi < 3; ++vi)
+		{
+			const int fv0 = fv[vi];
+			const int fv1 = fv[(vi + 1) % 3];
+			const int fv2 = fv[(vi + 2) % 3];
+			b(fv0) /= areas(fv0);
+			triple.push_back(Tri(fv0, fv0, (1.0 / std::tan(ca[(vi + 1) % 3]) + 1.0 / std::tan(ca[(vi + 2) % 3])) / (2.0 * areas(fv0))));
+			triple.push_back(Tri(fv0, fv1, -1.0 / std::tan(ca[(vi + 2) % 3]) / (2.0 * areas(fv0))));
+			triple.push_back(Tri(fv0, fv2, -1.0 / std::tan(ca[(vi + 1) % 3]) / (2.0 * areas(fv0))));
+		}
+	}
+
+	A.setFromTriplets(triple.begin(), triple.end());
+	Eigen::SimplicialLLT<SparseMatrixType> solver;
+	solver.compute(A * A.transpose());
+	if (solver.info() != Eigen::Success)
+	{
+		std::cout << "Scales Solve Failed !" << std::endl;
+	}
+
+	VectorType phi = A.transpose() * solver.solve(b);
+
+	VectorType resV;
+	resV.setConstant(Vnum, 0);
+	for (int j = 0; j < F.cols(); ++j)
+	{
+		const Eigen::Vector3i& fv = F.col(j);
+		for (size_t vi = 0; vi < 3; ++vi)
+		{
+			const int fv0 = fv[vi];
+			const int fv1 = fv[(vi + 1) % 3];
+			const int fv2 = fv[(vi + 2) % 3];
+
+			const double  ph0 = phi(fv0);
+			const double  ph1 = phi(fv1);
+			const double  ph2 = phi(fv2);
+
+			const PosVector& p0 = V.col(fv0);
+			const PosVector& p1 = V.col(fv1);
+			const PosVector& p2 = V.col(fv2);
+
+			const double s0 = (ph2 == ph1) ? exp(ph2) : (exp(ph1) - exp(ph2)) / (ph1 - ph2);
+			const double s1 = (ph2 == ph0) ? exp(ph2) : (exp(ph0) - exp(ph2)) / (ph0 - ph2);
+			const double s2 = (ph1 == ph0) ? exp(ph1) : (exp(ph0) - exp(ph1)) / (ph0 - ph1);
+
+			const double l0 = (p2 - p1).norm() * s0;
+			const double l1 = (p2 - p0).norm() * s1;
+			const double l2 = (p1 - p0).norm() * s2;
+
+			const double angle = std::acos(std::max(-1.0, std::min(1.0, (l1 * l1 + l2 * l2 - l0 * l0) / (2.0 * l1 * l2))));
+			//if (interVidx(fv0) != -1)
+				resV(fv0) += angle;
+		}
+	}
+
+	for (int i = 0; i < resV.rows(); ++i)
+	{
+		//if (interVidx(i) != -1)
+			std::cout << resV(i) - 2.0 * M_PI << std::endl;
+	}
+}

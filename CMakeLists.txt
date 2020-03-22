@@ -25,6 +25,11 @@ include_directories("$ENV{Alglib_DIR}/inc")
 #Mosek
 include_directories("$ENV{MOSEK_DIR}/h")
 
+#CGAL
+find_package(CGAL REQUIRED)
+include_directories("${CGAL_DIR}/include")
+include_directories("${GMP_INCLUDE_DIR}")
+
 add_executable(Interpolation "src/Interpolation/interpolation.cpp" "src/Interpolation/interpolation.h")
 target_link_libraries(Interpolation debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
 target_link_libraries(Interpolation optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
@@ -89,9 +94,6 @@ target_link_libraries(Temp optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_re
 target_link_libraries(Temp Eigen3::Eigen)
 target_link_libraries(Temp ${VTK_LIBRARIES})
 
-add_executable(MeshIO "src/mesh_io.cpp" "src/mesh_io.h")
-target_link_libraries(MeshIO Eigen3::Eigen)
-
 add_executable(opt_solver "src/solver/func_opt.cpp" "src/solver/func_opt.h" "src/solver/newton_solver.cpp" "src/solver/newton_solver.h" "src/solver/residual_func.h" "src/solver/main.cpp")
 target_link_libraries(opt_solver ${Boost_LIBRARIES})
 target_link_libraries(opt_solver Eigen3::Eigen)
@@ -127,6 +129,13 @@ target_link_libraries(PlanB optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_r
 target_link_libraries(PlanB Eigen3::Eigen)
 target_link_libraries(PlanB ${VTK_LIBRARIES})
 target_link_libraries(PlanB "$ENV{MOSEK_DIR}/bin/mosek9_1.lib")
+
+add_executable(Plan3 "src/Plan3/Plan3.cpp" "src/Plan3/Plan3.h" "src/Plan3/mosek_solver.h")
+target_link_libraries(Plan3 debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(Plan3 optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(Plan3 Eigen3::Eigen)
+target_link_libraries(Plan3 ${VTK_LIBRARIES})
+target_link_libraries(Plan3 "$ENV{MOSEK_DIR}/bin/mosek9_1.lib")
 
 add_executable(DoF "src/DoF/DoF.cpp" "src/DoF/DoF.h")
 target_link_libraries(DoF debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")

@@ -38,7 +38,7 @@ int main(int argc, char** argv)
 		std::cout << "Load failed!" << std::endl;
 	}
 
-	if (argc = 3)
+	if (argc == 3)
 	{
 		normtype = atoi(argv[2]);
 	}

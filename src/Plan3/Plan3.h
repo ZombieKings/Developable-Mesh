@@ -81,29 +81,39 @@ inline bool srhs(VectorType& b, const PosVector& input_vector, size_t idx)
 }
 
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix3Xi& F, Eigen::Matrix2Xi& E);
-void cal_angles(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, VectorType& vecAngles);
-void cal_angles_and_areas(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& interVidx, MatrixType& matAngles, VectorType& vecAngles, VectorType& areas);
-void cal_normals(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& interVidx, VectorType& Normals);
-void cal_gaussian_gradient(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& interVidx, MatrixTypeConst& mAngles, SparseMatrixType& mGradient);
-void cal_cot_laplace(const Eigen::Matrix3Xi& F, MatrixTypeConst& mAngles, const VectorType& areas, const Eigen::VectorXi& interVidx, SparseMatrixType& L);
-void cal_uni_laplace(const Eigen::Matrix3Xi& F, int Vnum, const Eigen::VectorXi& interVidx, SparseMatrixType& L);
 
-void precompute_A(int Vnum, const Eigen::Matrix2Xi& E, const Eigen::VectorXi& interVidx, const std::vector<int>& boundV, SolverType& solver, SparseMatrixType& At);
-void compute_scale(int Vnum, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, MatrixTypeConst& mAngles,
-	const VectorType& vecAngles, const VectorType& areas, const Eigen::VectorXi& interVidx, const std::vector<int>& boundV, VectorType& s);
-void update_vertices(SolverType& solver, const SparseMatrixType& At, MatrixType& V, const Eigen::Matrix2Xi& E,
-	const Eigen::VectorXi& interVidx, const std::vector<int>& boundV, const VectorType& length);
+void compute_scale(int Vnum,
+	const Eigen::Matrix2Xi& E,
+	const Eigen::Matrix3Xi& F,
+	MatrixTypeConst& mAngles,
+	const VectorType& vecAngles,
+	const VectorType& areas,
+	const Eigen::VectorXi& interVidx,
+	const std::vector<int>& boundV,
+	VectorType& s);
 
-void Solve(SolverType& solver, const SparseMatrixType& At, MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F,
-	MatrixTypeConst& matAngles, const VectorType& vecAngles, const VectorType& areas, const Eigen::VectorXi& interVidx, const std::vector<int>& boundV);
+void update_vertices(MatrixType& V,
+	const Eigen::Matrix2Xi& E,
+	const Eigen::Matrix3Xi& F,
+	MatrixTypeConst& matAngles,
+	const VectorType& areas,
+	const Eigen::VectorXi& interVidx,
+	const std::vector<int>& boundV,
+	const VectorType& s);
 
-void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
+void Solve(MatrixType& V, 
+	const Eigen::Matrix2Xi& E,
+	const Eigen::Matrix3Xi& F,
+	MatrixTypeConst& matAngles,
+	const VectorType& vecAngles, 
+	const VectorType& areas, 
+	const Eigen::VectorXi& interVidx, 
+	const std::vector<int>& boundV);
+
 double cal_error(const VectorType& vAngles, const std::vector<int>& interIdx, int flag);
 
+void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
 void matrix2vtk(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, vtkPolyData* P);
 void MakeLUT(vtkDoubleArray* Scalar, vtkLookupTable* LUT);
 void visualize_mesh(vtkRenderer* Renderer, MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const VectorType& angles, const Eigen::VectorXi& interVidx);
 
-//测试求得的phi能否得到可展
-void phi_develop_test(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixTypeConst& mAngles,
-	const VectorType& vecAngles, const VectorType& areas, const Eigen::VectorXi& interVidx, const std::vector<int>& boundV);
