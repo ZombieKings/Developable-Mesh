@@ -8,12 +8,14 @@
 #define MAXIT 10000
 
 int counter_ = 0;
-double wl_ = 1.0;
-double wp_ = 1.0;
-double we_ = 1000.0;
+double wl_ = 10.0;
+double wp_ = 10.0;
+double we_ = 100.0;
 
 std::vector<int> interV_;
 std::vector<int> boundV_;
+std::vector<int> specialV_;
+
 Eigen::VectorXi interVidx_;
 Eigen::Matrix3Xi matF_;
 Eigen::Matrix2Xi matE_;
@@ -24,6 +26,7 @@ Surface_Mesh::AABBSearcher<MatrixType, Eigen::Matrix3Xi> ABTree_;
 
 VectorType vecAngles_;
 MatrixType matAngles_;
+VectorType vecNormals_;
 VectorType areas_;
 
 double errsum_ = 0.0;
@@ -34,9 +37,11 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 	{
 		Solve(matV_, matE_, matF_, matAngles_, vecAngles_, areas_, interVidx_, boundV_);
 
-		std::cout << "----------------------" << std::endl;
-		std::cout << "第" << counter_++ << "次迭代，最大误差为： " << cal_error(vecAngles_, interV_, 1) << "，平均误差为： " << cal_error(vecAngles_, interV_, 0) << std::endl;
 		Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, vecAngles_, areas_, matAngles_);
+		double averE = cal_error(vecAngles_, interV_, 0);
+		double maxE = cal_error(vecAngles_, interV_, 1);
+		std::cout << "----------------------" << std::endl;
+		std::cout << "第" << counter_++ << "次迭代，最大误差为： " << maxE << "，平均误差为： " << averE << std::endl;
 
 		//--------------可视化更新---------------------
 		auto scalar = vtkSmartPointer<vtkDoubleArray>::New();
@@ -90,9 +95,16 @@ int main(int argc, char** argv)
 	}
 	interVidx_(mesh.n_vertices()) = count;
 
+	//specialV_.push_back(16);
+	//specialV_.push_back(189);
+	//interVidx_(16) = -2;
+	//interVidx_(189) = -2;
+
 	//网格初始信息收集
 	mesh2matrix(mesh, matV_, matF_, matE_);
 	Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, vecAngles_, areas_, matAngles_);
+	Zombie::cal_normal_per_vertex(matV_, matF_, interVidx_, vecNormals_);
+
 	MatrixType oriV(matV_);
 	VectorType oriA(vecAngles_);
 	orivecV_ = Eigen::Map<VectorType>(oriV.data(), oriV.cols() * 3, 1);
@@ -146,7 +158,7 @@ int main(int argc, char** argv)
 	auto style = vtkInteractorStyleTrackballCamera::New();
 	interactor->SetInteractorStyle(style);
 	interactor->Initialize();
-	interactor->CreateRepeatingTimer(10);
+	interactor->CreateRepeatingTimer(100);
 
 	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
 	timeCallback->SetCallback(CallbackFunction);
@@ -243,13 +255,13 @@ void compute_scale(int Vnum, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& 
 			const int fv2 = fv[(vi + 2) % 3];
 			if (interVidx(fv0) != -1)
 			{
-				b(fv0) /= areas(fv0);
 				triple.push_back(Tri(fv0, fv0, (1.0 / std::tan(ca[(vi + 1) % 3]) + 1.0 / std::tan(ca[(vi + 2) % 3])) / (2.0 * areas(fv0))));
 				triple.push_back(Tri(fv0, fv1, -1.0 / std::tan(ca[(vi + 2) % 3]) / (2.0 * areas(fv0))));
 				triple.push_back(Tri(fv0, fv2, -1.0 / std::tan(ca[(vi + 1) % 3]) / (2.0 * areas(fv0))));
 			}
 		}
 	}
+
 	for (auto i : boundV)
 	{
 		triple.push_back(Tri(i, i, 1.0));
@@ -288,9 +300,33 @@ void update_vertices(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matr
 {
 	const int Vnum = V.cols();
 	const int Enum = E.cols();
-	std::vector<Tri> triple;
+	SparseMatrixType A;
 	VectorType b;
+	A.resize(Vnum * 6 + Enum, 3 * Vnum);
 	b.setConstant(6 * Vnum + Enum, 0);
+	//A.resize(Vnum * 4 + Enum, 3 * Vnum);
+	//b.setConstant(4 * Vnum + Enum, 0);
+	//A.resize(Vnum * 3 + Enum, 3 * Vnum);
+	//b.setConstant(3 * Vnum + Enum, 0);
+	std::vector<Tri> triple;
+
+	//逼近目标边长
+	for (int i = 0; i < Enum; ++i)
+	{
+		const Eigen::Vector2i& ev = E.col(i);
+		const PosVector& v0 = V.col(ev(0));
+		const PosVector& v1 = V.col(ev(1));
+		const PosVector e01 = v1 - v0;
+		const double l = e01.norm();
+		const double tl = l * s(i);
+
+		for (int j = 0; j < 3; ++j)
+		{
+			triple.push_back(Tri(i, ev(0) * 3 + j, -we_ * e01(j) / l));
+			triple.push_back(Tri(i, ev(1) * 3 + j, we_ * e01(j) / l));
+		}
+		b(i) = we_ * e01.dot(e01) / l - l + tl;
+	}
 
 	//当前网格与初始网格的拉普拉斯坐标位置约束
 	for (int i = 0; i < F.cols(); ++i)
@@ -302,62 +338,70 @@ void update_vertices(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matr
 			const int fv0 = fv[vi];
 			const int fv1 = fv[(vi + 1) % 3];
 			const int fv2 = fv[(vi + 2) % 3];
-			if (interVidx(fv0) != -1)
+			if (interVidx(fv0) >= 0)
 			{
 				const double temp0 = wl_ * (1.0 / std::tan(ca[(vi + 1) % 3]) + 1.0 / std::tan(ca[(vi + 2) % 3])) / (2.0 * areas(fv0));
 				const double temp1 = -wl_ * 1.0 / std::tan(ca[(vi + 2) % 3]) / (2.0 * areas(fv0));
 				const double temp2 = -wl_ * 1.0 / std::tan(ca[(vi + 1) % 3]) / (2.0 * areas(fv0));
 				for (int j = 0; j < 3; ++j)
 				{
-					triple.push_back(Tri(fv0 * 3 + j, fv0 * 3 + j, temp0));
-					triple.push_back(Tri(fv0 * 3 + j, fv1 * 3 + j, temp1));
-					triple.push_back(Tri(fv0 * 3 + j, fv2 * 3 + j, temp2));
-					b(fv0 * 3 + j) += temp0 * orivecV_(fv0 * 3 + j);
-					b(fv0 * 3 + j) += temp1 * orivecV_(fv1 * 3 + j);
-					b(fv0 * 3 + j) += temp2 * orivecV_(fv2 * 3 + j);
+					triple.push_back(Tri(Enum + fv0 * 3 + j, fv0 * 3 + j, temp0));
+					triple.push_back(Tri(Enum + fv0 * 3 + j, fv1 * 3 + j, temp1));
+					triple.push_back(Tri(Enum + fv0 * 3 + j, fv2 * 3 + j, temp2));
+					b(Enum + fv0 * 3 + j) += temp0 * orivecV_(fv0 * 3 + j);
+					b(Enum + fv0 * 3 + j) += temp1 * orivecV_(fv1 * 3 + j);
+					b(Enum + fv0 * 3 + j) += temp2 * orivecV_(fv2 * 3 + j);
 				}
 			}
 			else
 			{
 				for (int j = 0; j < 3; ++j)
 				{
-					triple.push_back(Tri(fv0 * 3 + j, fv0 * 3 + j, wp_ * 100));
-					b(fv0 * 3 + j) += wp_ * 100 * orivecV_(fv0 * 3 + j);
+					triple.push_back(Tri(Enum + fv0 * 3 + j, fv0 * 3 + j, wp_ * 100));
+					b(Enum + fv0 * 3 + j) += wp_ * 100 * orivecV_(fv0 * 3 + j);
 				}
 			}
 		}
 	}
 
+	////当前网格与初始网格的在顶点法向上的位置约束
+	//for (int i = 0; i < Vnum; ++i)
+	//{
+	//	if (interVidx(i) != -1)
+	//	{
+	//		Eigen::Vector3d CP = ABTree_.closest_point((Eigen::Vector3d)V.col(i));
+	//		for (int j = 0; j < 3; ++j)
+	//		{
+	//			triple.push_back(Tri(Enum + Vnum * 3 + i, i * 3 + j, wp_ * vecNormals_(i * 3 + j)));
+	//			b(Enum + Vnum * 3 + i) += wp_ * CP(j) * vecNormals_(i * 3 + j);
+	//		}
+	//	}
+	//}
+
 	//当前网格与初始网格的位置约束
 	for (int i = 0; i < Vnum; ++i)
 	{
-		Eigen::Vector3d CP = ABTree_.closest_point((Eigen::Vector3d)V.col(i));
-		for (int j = 0; j < 3; ++j)
+		if (interVidx(i) != -1)
 		{
-			triple.push_back(Tri(Vnum * 3 + i * 3 + j, i * 3 + j, wp_ * 1.0));
-			b(Vnum * 3 + i * 3 + j) = wp_ * CP(j);
+			Eigen::Vector3d CP = ABTree_.closest_point((Eigen::Vector3d)V.col(i));
+			for (int j = 0; j < 3; ++j)
+			{
+				//triple.push_back(Tri(Enum + Vnum * 3 + i * 3 + j, i * 3 + j, wp_));
+				//b(Enum + Vnum * 3 + i * 3 + j) += wp_ * CP(j);	
+				triple.push_back(Tri(Enum + i * 3 + j, i * 3 + j, wp_));
+				b(Enum + i * 3 + j) += wp_ * CP(j);
+			}
+		}
+		else
+		{
+			for (int j = 0; j < 3; ++j)
+			{
+				triple.push_back(Tri(Enum + i * 3 + j, i * 3 + j, wp_ * 100));
+				b(Enum + i * 3 + j) += wp_ * 100 * orivecV_(i * 3 + j);
+			}
 		}
 	}
 
-	//逼近目标边长
-	for (int i = 0; i < Enum; ++i)
-	{
-		const Eigen::Vector2i& ev = E.col(i);
-		const PosVector& v0 = V.col(ev(0));
-		const PosVector& v1 = V.col(ev(1));
-		const PosVector e01 = v1 - v0;
-		const double l = e01.norm();
-		const double tl = l * s(i);
-		for (int j = 0; j < 3; ++j)
-		{
-			triple.push_back(Tri(Vnum * 6 + i, ev(0) * 3 + j, -we_ * e01(j) / l));
-			triple.push_back(Tri(Vnum * 6 + i, ev(1) * 3 + j, we_ * e01(j) / l));
-		}
-		b(Vnum * 6 + i) = we_ * e01.dot(e01) / l - l + tl;
-	}
-
-	SparseMatrixType A;
-	A.resize(Vnum * 6 + Enum, 3 * Vnum);
 	A.setFromTriplets(triple.begin(), triple.end());
 
 	//std::cout << A << std::endl;

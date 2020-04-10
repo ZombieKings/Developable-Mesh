@@ -25,6 +25,9 @@ include_directories("$ENV{Alglib_DIR}/inc")
 #Mosek
 include_directories("$ENV{MOSEK_DIR}/h")
 
+#Cinolib
+include_directories("$ENV{Cinolib_DIR}/include")
+
 #CGAL
 find_package(CGAL REQUIRED)
 include_directories("${CGAL_DIR}/include")
@@ -130,7 +133,7 @@ target_link_libraries(PlanB Eigen3::Eigen)
 target_link_libraries(PlanB ${VTK_LIBRARIES})
 target_link_libraries(PlanB "$ENV{MOSEK_DIR}/bin/mosek9_1.lib")
 
-add_executable(Plan3 "src/Plan3/Plan3.cpp" "src/Plan3/Plan3.h" "src/Plan3/mosek_solver.h")
+add_executable(Plan3 "src/Plan3/Plan3.cpp" "src/Plan3/Plan3.h")
 target_link_libraries(Plan3 debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
 target_link_libraries(Plan3 optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
 target_link_libraries(Plan3 Eigen3::Eigen)
