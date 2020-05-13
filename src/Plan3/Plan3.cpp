@@ -8,9 +8,11 @@
 #define MAXIT 10000
 
 int counter_ = 0;
-double wl_ = 10.0;
-double wp_ = 10.0;
-double we_ = 100.0;
+
+double w1_ = 100.0;
+double w2_ = 10.0;
+double alpha_ = 0.7;
+double beta_ = 0.3;
 
 std::vector<int> interV_;
 std::vector<int> boundV_;
@@ -22,11 +24,11 @@ Eigen::Matrix2Xi matE_;
 MatrixType matV_;
 
 VectorType orivecV_;
+MatrixType oriNormals_;
 Surface_Mesh::AABBSearcher<MatrixType, Eigen::Matrix3Xi> ABTree_;
 
 VectorType vecAngles_;
 MatrixType matAngles_;
-VectorType vecNormals_;
 VectorType areas_;
 
 double errsum_ = 0.0;
@@ -103,10 +105,10 @@ int main(int argc, char** argv)
 	//网格初始信息收集
 	mesh2matrix(mesh, matV_, matF_, matE_);
 	Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, vecAngles_, areas_, matAngles_);
-	Zombie::cal_normal_per_vertex(matV_, matF_, interVidx_, vecNormals_);
 
 	MatrixType oriV(matV_);
 	VectorType oriA(vecAngles_);
+	Zombie::cal_normal_per_vertex(matV_, matF_, interVidx_, oriNormals_);
 	orivecV_ = Eigen::Map<VectorType>(oriV.data(), oriV.cols() * 3, 1);
 	//使用初始顶点建立AABBTree
 	ABTree_.build(matV_, matF_);
@@ -269,7 +271,7 @@ void compute_scale(int Vnum, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& 
 	}
 
 	A.setFromTriplets(triple.begin(), triple.end());
-	Eigen::SimplicialLLT<SparseMatrixType> solver;
+	Eigen::SimplicialLDLT<SparseMatrixType> solver;
 	solver.compute(A * A.transpose());
 	if (solver.info() != Eigen::Success)
 	{
@@ -302,12 +304,10 @@ void update_vertices(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matr
 	const int Enum = E.cols();
 	SparseMatrixType A;
 	VectorType b;
-	A.resize(Vnum * 6 + Enum, 3 * Vnum);
-	b.setConstant(6 * Vnum + Enum, 0);
-	//A.resize(Vnum * 4 + Enum, 3 * Vnum);
-	//b.setConstant(4 * Vnum + Enum, 0);
-	//A.resize(Vnum * 3 + Enum, 3 * Vnum);
-	//b.setConstant(3 * Vnum + Enum, 0);
+	//A.resize(Vnum * 6 + Enum, 3 * Vnum);
+	//b.setConstant(6 * Vnum + Enum, 0);
+	A.resize(Vnum * 4 + Enum, 3 * Vnum);
+	b.setConstant(4 * Vnum + Enum, 0);
 	std::vector<Tri> triple;
 
 	//逼近目标边长
@@ -322,90 +322,98 @@ void update_vertices(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matr
 
 		for (int j = 0; j < 3; ++j)
 		{
-			triple.push_back(Tri(i, ev(0) * 3 + j, -we_ * e01(j) / l));
-			triple.push_back(Tri(i, ev(1) * 3 + j, we_ * e01(j) / l));
+			triple.push_back(Tri(i, ev(0) * 3 + j, -w1_ * e01(j) / l));
+			triple.push_back(Tri(i, ev(1) * 3 + j, w1_ * e01(j) / l));
 		}
-		b(i) = we_ * e01.dot(e01) / l - l + tl;
+		b(i) = w1_ * e01.dot(e01) / l - l + tl;
 	}
 
-	//当前网格与初始网格的拉普拉斯坐标位置约束
-	for (int i = 0; i < F.cols(); ++i)
-	{
-		const Eigen::VectorXi& fv = F.col(i);
-		const Eigen::VectorXd& ca = matAngles.col(i);
-		for (size_t vi = 0; vi < 3; ++vi)
-		{
-			const int fv0 = fv[vi];
-			const int fv1 = fv[(vi + 1) % 3];
-			const int fv2 = fv[(vi + 2) % 3];
-			if (interVidx(fv0) >= 0)
-			{
-				const double temp0 = wl_ * (1.0 / std::tan(ca[(vi + 1) % 3]) + 1.0 / std::tan(ca[(vi + 2) % 3])) / (2.0 * areas(fv0));
-				const double temp1 = -wl_ * 1.0 / std::tan(ca[(vi + 2) % 3]) / (2.0 * areas(fv0));
-				const double temp2 = -wl_ * 1.0 / std::tan(ca[(vi + 1) % 3]) / (2.0 * areas(fv0));
-				for (int j = 0; j < 3; ++j)
-				{
-					triple.push_back(Tri(Enum + fv0 * 3 + j, fv0 * 3 + j, temp0));
-					triple.push_back(Tri(Enum + fv0 * 3 + j, fv1 * 3 + j, temp1));
-					triple.push_back(Tri(Enum + fv0 * 3 + j, fv2 * 3 + j, temp2));
-					b(Enum + fv0 * 3 + j) += temp0 * orivecV_(fv0 * 3 + j);
-					b(Enum + fv0 * 3 + j) += temp1 * orivecV_(fv1 * 3 + j);
-					b(Enum + fv0 * 3 + j) += temp2 * orivecV_(fv2 * 3 + j);
-				}
-			}
-			else
-			{
-				for (int j = 0; j < 3; ++j)
-				{
-					triple.push_back(Tri(Enum + fv0 * 3 + j, fv0 * 3 + j, wp_ * 100));
-					b(Enum + fv0 * 3 + j) += wp_ * 100 * orivecV_(fv0 * 3 + j);
-				}
-			}
-		}
-	}
-
-	////当前网格与初始网格的在顶点法向上的位置约束
-	//for (int i = 0; i < Vnum; ++i)
+	////当前网格与初始网格的拉普拉斯坐标位置约束
+	//for (int i = 0; i < F.cols(); ++i)
 	//{
-	//	if (interVidx(i) != -1)
+	//	const Eigen::VectorXi& fv = F.col(i);
+	//	const Eigen::VectorXd& ca = matAngles.col(i);
+	//	for (size_t vi = 0; vi < 3; ++vi)
 	//	{
-	//		Eigen::Vector3d CP = ABTree_.closest_point((Eigen::Vector3d)V.col(i));
-	//		for (int j = 0; j < 3; ++j)
+	//		const int fv0 = fv[vi];
+	//		const int fv1 = fv[(vi + 1) % 3];
+	//		const int fv2 = fv[(vi + 2) % 3];
+	//		if (interVidx(fv0) >= 0)
 	//		{
-	//			triple.push_back(Tri(Enum + Vnum * 3 + i, i * 3 + j, wp_ * vecNormals_(i * 3 + j)));
-	//			b(Enum + Vnum * 3 + i) += wp_ * CP(j) * vecNormals_(i * 3 + j);
+	//			const double temp0 = wl_ * (1.0 / std::tan(ca[(vi + 1) % 3]) + 1.0 / std::tan(ca[(vi + 2) % 3])) / (2.0 * areas(fv0));
+	//			const double temp1 = -wl_ * 1.0 / std::tan(ca[(vi + 2) % 3]) / (2.0 * areas(fv0));
+	//			const double temp2 = -wl_ * 1.0 / std::tan(ca[(vi + 1) % 3]) / (2.0 * areas(fv0));
+	//			for (int j = 0; j < 3; ++j)
+	//			{
+	//				triple.push_back(Tri(Enum + fv0 * 3 + j, fv0 * 3 + j, temp0));
+	//				triple.push_back(Tri(Enum + fv0 * 3 + j, fv1 * 3 + j, temp1));
+	//				triple.push_back(Tri(Enum + fv0 * 3 + j, fv2 * 3 + j, temp2));
+	//				b(Enum + fv0 * 3 + j) += temp0 * orivecV_(fv0 * 3 + j);
+	//				b(Enum + fv0 * 3 + j) += temp1 * orivecV_(fv1 * 3 + j);
+	//				b(Enum + fv0 * 3 + j) += temp2 * orivecV_(fv2 * 3 + j);
+	//			} 
+	//		}
+	//		else
+	//		{
+	//			for (int j = 0; j < 3; ++j)
+	//			{
+	//				triple.push_back(Tri(Enum + fv0 * 3 + j, fv0 * 3 + j, wp_ * 100));
+	//				b(Enum + fv0 * 3 + j) += wp_ * 100 * orivecV_(fv0 * 3 + j);
+	//			}
 	//		}
 	//	}
 	//}
+
+	//查找当前曲面与原始曲面的对应点关系
+	MatrixType corrV;
+	MatrixType corrVcordinations;
+	VectorType corrFid;
+	corrV.resize(3, V.cols());
+	corrVcordinations.resize(3, V.cols());
+	corrFid.resize(V.cols());
+	ABTree_.closest_point(V, corrV, corrFid);
 
 	//当前网格与初始网格的位置约束
 	for (int i = 0; i < Vnum; ++i)
 	{
 		if (interVidx(i) != -1)
 		{
-			Eigen::Vector3d CP = ABTree_.closest_point((Eigen::Vector3d)V.col(i));
 			for (int j = 0; j < 3; ++j)
 			{
-				//triple.push_back(Tri(Enum + Vnum * 3 + i * 3 + j, i * 3 + j, wp_));
-				//b(Enum + Vnum * 3 + i * 3 + j) += wp_ * CP(j);	
-				triple.push_back(Tri(Enum + i * 3 + j, i * 3 + j, wp_));
-				b(Enum + i * 3 + j) += wp_ * CP(j);
+				triple.push_back(Tri(Enum + i * 3 + j, i * 3 + j, w2_ * alpha_));
+				b(Enum + i * 3 + j) += w2_ * alpha_ * corrV(j, i);
 			}
 		}
 		else
 		{
 			for (int j = 0; j < 3; ++j)
 			{
-				triple.push_back(Tri(Enum + i * 3 + j, i * 3 + j, wp_ * 100));
-				b(Enum + i * 3 + j) += wp_ * 100 * orivecV_(i * 3 + j);
+				triple.push_back(Tri(Enum + i * 3 + j, i * 3 + j, w2_ * 100));
+				b(Enum + i * 3 + j) += w2_ * 100 * orivecV_(i * 3 + j);
+			}
+		}
+	}
+
+	//当前网格与初始网格的在顶点法向上的位置约束
+	ABTree_.barycentric(corrV, corrFid, corrVcordinations);
+	for (int i = 0; i < Vnum; ++i)
+	{
+		//if (interVidx(i) != -1)
+		{
+			PosVector corrVnomal(PosVector::Zero(3));
+			for (int j = 0; j < 3; ++j)
+			{
+				corrVnomal += corrVcordinations(j, i) * oriNormals_.col(F(j, corrFid[i]));
+			}
+			for (int j = 0; j < 3; ++j)
+			{
+				triple.push_back(Tri(Enum + Vnum * 3 + i, i * 3 + j, w2_ * beta_ * corrVnomal(j)));
+				b(Enum + Vnum * 3 + i) += w2_ * beta_ * corrV(j, i) * corrVnomal(j);
 			}
 		}
 	}
 
 	A.setFromTriplets(triple.begin(), triple.end());
-
-	//std::cout << A << std::endl;
-
 	Eigen::SimplicialLLT<SparseMatrixType> solver;
 	solver.compute(A.transpose() * A);
 	if (solver.info() != Eigen::Success)

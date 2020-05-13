@@ -65,12 +65,6 @@ target_link_libraries(NewtonMethod optimized "$ENV{Surface_Mesh_DIR}/lib/surface
 target_link_libraries(NewtonMethod Eigen3::Eigen)
 target_link_libraries(NewtonMethod ${VTK_LIBRARIES})
 
-add_executable(DifferOperators "src/DifferentialOperators.cpp" "src/DifferentialOperators.h")
-target_link_libraries(DifferOperators debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
-target_link_libraries(DifferOperators optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
-target_link_libraries(DifferOperators Eigen3::Eigen)
-target_link_libraries(DifferOperators ${VTK_LIBRARIES})
-
 add_executable(LaplasianSmooth "src/LaplasianSmooth.cpp")
 target_link_libraries(LaplasianSmooth debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
 target_link_libraries(LaplasianSmooth optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
