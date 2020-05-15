@@ -82,7 +82,7 @@ inline bool srhs(VectorType& b, const PosVector& input_vector, size_t idx)
 
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix3Xi& F, Eigen::Matrix2Xi& E);
 
-void compute_scale(int Vnum,
+void compute_length(MatrixTypeConst& V,
 	const Eigen::Matrix2Xi& E,
 	const Eigen::Matrix3Xi& F,
 	MatrixTypeConst& mAngles,
@@ -90,7 +90,7 @@ void compute_scale(int Vnum,
 	const VectorType& areas,
 	const Eigen::VectorXi& interVidx,
 	const std::vector<int>& boundV,
-	VectorType& s);
+	VectorType& tl);
 
 void update_vertices(MatrixType& V,
 	const Eigen::Matrix2Xi& E,
@@ -99,16 +99,56 @@ void update_vertices(MatrixType& V,
 	const VectorType& areas,
 	const Eigen::VectorXi& interVidx,
 	const std::vector<int>& boundV,
-	const VectorType& s);
+	const VectorType& tl,
+	MatrixType& corrV,
+	MatrixType& corrVcordinations,
+	VectorType& corrFid);
 
-void Solve(MatrixType& V, 
+void Find_Corr(MatrixType& V,
 	const Eigen::Matrix2Xi& E,
 	const Eigen::Matrix3Xi& F,
 	MatrixTypeConst& matAngles,
+	const VectorType& vecAngles,
+	const VectorType& areas,
+	const Eigen::VectorXi& interVidx,
+	const std::vector<int>& boundV,
+	VectorType& tl,
+	MatrixType& corrV,
+	MatrixType& corrVcordinations,
+	VectorType& corrFid);
+
+void cal_auxd(MatrixTypeConst& V,
+	const Eigen::Matrix2Xi& E,
+	const VectorType& tl,
+	VectorType& auxd);
+
+void cal_corrL(MatrixTypeConst& V,
+	const Eigen::Matrix3Xi& F,
+	MatrixTypeConst& corrVcordinations,
+	MatrixTypeConst& corrFid,
+	MatrixTypeConst& matAngles,
+	const VectorType& areas,
+	const Eigen::VectorXi& interVidx,
+	MatrixType& TLap);
+
+void spring_update(MatrixType& V,
+	const Eigen::Matrix2Xi& E,
+	const Eigen::Matrix3Xi& F,
+	MatrixTypeConst& TLap,
+	const VectorType& auxd,
+	MatrixTypeConst& matAngles,
+	const VectorType& areas,
+	const Eigen::VectorXi& interVidx);
+
+void Mesh_Refine(MatrixType& V, 
+	const Eigen::Matrix2Xi& E, 
+	const Eigen::Matrix3Xi& F,
+	MatrixTypeConst& TLap, 
+	const VectorType& tl,
+	MatrixTypeConst& matAngles,
 	const VectorType& vecAngles, 
 	const VectorType& areas, 
-	const Eigen::VectorXi& interVidx, 
-	const std::vector<int>& boundV);
+	const Eigen::VectorXi& interVidx);
 
 double cal_error(const VectorType& vAngles, const std::vector<int>& interIdx, int flag);
 
