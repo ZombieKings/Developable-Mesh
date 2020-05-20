@@ -92,7 +92,7 @@ void compute_length(MatrixTypeConst& V,
 	const std::vector<int>& boundV,
 	VectorType& tl);
 
-void update_vertices(MatrixType& V,
+void update_vertices(MatrixType& corrV,
 	const Eigen::Matrix2Xi& E,
 	const Eigen::Matrix3Xi& F,
 	MatrixTypeConst& matAngles,
@@ -100,11 +100,10 @@ void update_vertices(MatrixType& V,
 	const Eigen::VectorXi& interVidx,
 	const std::vector<int>& boundV,
 	const VectorType& tl,
-	MatrixType& corrV,
 	MatrixType& corrVcordinations,
 	VectorType& corrFid);
 
-void Find_Corr(MatrixType& V,
+void Find_Corr(MatrixType& corrV,
 	const Eigen::Matrix2Xi& E,
 	const Eigen::Matrix3Xi& F,
 	MatrixTypeConst& matAngles,
@@ -113,46 +112,41 @@ void Find_Corr(MatrixType& V,
 	const Eigen::VectorXi& interVidx,
 	const std::vector<int>& boundV,
 	VectorType& tl,
-	MatrixType& corrV,
 	MatrixType& corrVcordinations,
 	VectorType& corrFid);
 
 void cal_auxd(MatrixTypeConst& V,
 	const Eigen::Matrix2Xi& E,
 	const VectorType& tl,
-	VectorType& auxd);
+	MatrixType& auxd);
 
-void cal_corrL(MatrixTypeConst& V,
+void pre_build_solver(const VectorType& orivecV,
+	const Eigen::Matrix2Xi& E,
 	const Eigen::Matrix3Xi& F,
 	MatrixTypeConst& corrVcordinations,
-	MatrixTypeConst& corrFid,
-	MatrixTypeConst& matAngles,
-	const VectorType& areas,
+	const VectorType& corrFid,
+	MatrixTypeConst& oriMatAngles,
+	const VectorType& oriAreas,
 	const Eigen::VectorXi& interVidx,
-	MatrixType& TLap);
+	SolverType& solver,
+	VectorType& Rhs);
 
 void spring_update(MatrixType& V,
 	const Eigen::Matrix2Xi& E,
-	const Eigen::Matrix3Xi& F,
-	MatrixTypeConst& TLap,
-	const VectorType& auxd,
-	MatrixTypeConst& matAngles,
-	const VectorType& areas,
-	const Eigen::VectorXi& interVidx);
+	MatrixTypeConst& auxd,
+	const SolverType& solver,
+	const VectorType& Rhs);
 
-void Mesh_Refine(MatrixType& V, 
-	const Eigen::Matrix2Xi& E, 
+void Mesh_Refine(MatrixType& V,
+	const Eigen::Matrix2Xi& E,
 	const Eigen::Matrix3Xi& F,
-	MatrixTypeConst& TLap, 
 	const VectorType& tl,
-	MatrixTypeConst& matAngles,
-	const VectorType& vecAngles, 
-	const VectorType& areas, 
-	const Eigen::VectorXi& interVidx);
+	SolverType& solver,
+	VectorType& Rhs);
 
 double cal_error(const VectorType& vAngles, const std::vector<int>& interIdx, int flag);
 
-void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
+void TimeCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
 void matrix2vtk(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, vtkPolyData* P);
 void MakeLUT(vtkDoubleArray* Scalar, vtkLookupTable* LUT);
 void visualize_mesh(vtkRenderer* Renderer, MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const VectorType& angles, const Eigen::VectorXi& interVidx);

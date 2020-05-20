@@ -5,14 +5,19 @@
 #include "../tools/cal_normals.h"
 #include "../tools/AABBSearcher.h"
 
-#define MAXIT 10000
+#define MAXIT 100
+#define DELTA1 0.38
 
 int counter_ = 0;
+bool corr_fin_ = false;
+bool deve_fin_ = false;
 
 double w1_ = 100.0;
 double w2_ = 10.0;
 double alpha_ = 0.7;
 double beta_ = 0.3;
+double lambda_corr_ = 2.0 / 4.0;
+double lambda_dev_ = 1.0;
 
 std::vector<int> interV_;
 std::vector<int> boundV_;
@@ -23,8 +28,12 @@ Eigen::Matrix3Xi matF_;
 Eigen::Matrix2Xi matE_;
 MatrixType matV_;
 
+MatrixType oriV_;
 VectorType orivecV_;
 MatrixType oriNormals_;
+VectorType oriAngles_;
+MatrixType oriMatAngles_;
+VectorType oriAreas_;
 Surface_Mesh::AABBSearcher<MatrixType, Eigen::Matrix3Xi> ABTree_;
 
 VectorType vecAngles_;
@@ -35,29 +44,55 @@ VectorType tl_;
 MatrixType corrV_;
 MatrixType corrVcordinations_;
 VectorType corrFid_;
+SolverType solver_;
+VectorType Rhs_;
 
+SparseMatrixType reEnerA_;
+VectorType reEnerb_;
+double reEnergy_ = 0.0;
 double errsum_ = 0.0;
 
-void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData))
+void TimeCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData))
 {
-	if (counter_ < MAXIT)
+	if (counter_ < MAXIT && (!deve_fin_ || !corr_fin_))
 	{
-		Find_Corr(matV_, matE_, matF_, matAngles_, vecAngles_, areas_, interVidx_, boundV_, tl_, corrV_, corrVcordinations_, corrFid_);
+		VectorType vA;
+		MatrixType mA;
+		VectorType as;
+		if (!corr_fin_)
+		{
+			MatrixType lastV(corrV_);
+			Zombie::cal_angles_and_areas(corrV_, matF_, interVidx_, vA, as, mA);
+			Find_Corr(corrV_, matE_, matF_, mA, vA, as, interVidx_, boundV_, tl_, corrVcordinations_, corrFid_);
+			//std::cout << (corrV_ - lastV).norm() << std::endl;
+			if ((corrV_ - lastV).norm() < DELTA1)
+			{
+				pre_build_solver(orivecV_, matE_, matF_, corrVcordinations_, corrFid_, oriMatAngles_, oriAreas_, interVidx_, solver_, Rhs_);
+				corr_fin_ = true;
+				std::cout << "find correspondence finish" << std::endl;
+			}
+		}
+		else
+		{
+			Mesh_Refine(matV_, matE_, matF_, tl_, solver_, Rhs_);
+			Zombie::cal_angles(matV_, matF_, vA);
+			deve_fin_ = true;
+		}
 
-		Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, vecAngles_, areas_, matAngles_);
-		double averE = cal_error(vecAngles_, interV_, 0);
-		double maxE = cal_error(vecAngles_, interV_, 1);
-		std::cout << "----------------------" << std::endl;
-		std::cout << "第" << counter_++ << "次迭代，最大误差为： " << maxE << "，平均误差为： " << averE << std::endl;
+		//Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, vecAngles_, areas_, matAngles_);
+		//double averE = cal_error(vecAngles_, interV_, 0);
+		//double maxE = cal_error(vecAngles_, interV_, 1);
+		//std::cout << "----------------------" << std::endl;
+		//std::cout << "第" << counter_++ << "次迭代，最大误差为： " << maxE << "，平均误差为： " << averE << std::endl;
 
 		//--------------可视化更新---------------------
 		auto scalar = vtkSmartPointer<vtkDoubleArray>::New();
 		scalar->SetNumberOfComponents(1);
 		scalar->SetNumberOfTuples(matV_.cols());
-		for (auto i = 0; i < vecAngles_.size(); ++i)
+		for (auto i = 0; i < vA.size(); ++i)
 		{
 			if (interVidx_(i) != -1)
-				scalar->InsertTuple1(i, abs(2.0f * M_PI - vecAngles_(i)));
+				scalar->InsertTuple1(i, abs(2.0f * M_PI - vA(i)));
 			else
 				scalar->InsertTuple1(i, 0);
 		}
@@ -68,7 +103,10 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 		auto points = vtkSmartPointer<vtkPoints>::New();
 		for (int i = 0; i < matV_.cols(); ++i)
 		{
-			points->InsertNextPoint(matV_.col(i).data());
+			if (!corr_fin_)
+				points->InsertNextPoint(corrV_.col(i).data());
+			else
+				points->InsertNextPoint(matV_.col(i).data());
 		}
 		polydata->SetPoints(points);
 		polydata->GetPointData()->SetScalars(scalar);
@@ -76,6 +114,14 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 
 		iren->Render();
 	}
+}
+
+void KeypressCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* vtkNotUsed(clientData), void* vtkNotUsed(callData))
+{
+	auto* iren = static_cast<vtkRenderWindowInteractor*>(caller);
+	if (*(iren->GetKeySym()) == 'n')
+		deve_fin_ = false;
+
 }
 
 int main(int argc, char** argv)
@@ -111,25 +157,28 @@ int main(int argc, char** argv)
 	mesh2matrix(mesh, matV_, matF_, matE_);
 	Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, vecAngles_, areas_, matAngles_);
 
-	MatrixType oriV(matV_);
-	VectorType oriA(vecAngles_);
+	oriV_ = matV_;
+	oriAngles_ = vecAngles_;
+	oriMatAngles_ = matAngles_;
+	oriAreas_ = areas_;
 	Zombie::cal_normal_per_vertex(matV_, matF_, interVidx_, oriNormals_);
-	orivecV_ = Eigen::Map<VectorType>(oriV.data(), oriV.cols() * 3, 1);
+	orivecV_ = Eigen::Map<VectorType>(oriV_.data(), oriV_.cols() * 3, 1);
 	//使用初始顶点建立AABBTree
 	ABTree_.build(matV_, matF_);
+	corrV_ = matV_;
+	corrVcordinations_.resize(3, matV_.cols());
+	corrFid_.resize(matV_.cols());
 
 	//std::cout << "初始最大误差： " << cal_error(vecAngles_, interV_, 1) << std::endl;
 	//std::cout << "初始平均误差： " << cal_error(vecAngles_, interV_, 0) << std::endl;
 
 	//--------------测试---------------
 
-	//Find_Corr(matV_, matE_, matF_, matAngles_, vecAngles_, areas_, interVidx_, boundV_);
-	//Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, vecAngles_, areas_, matAngles_);
-
 	//---------------可视化---------------
 	//创建窗口
 	auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
 	renderWindow->SetSize(1600, 800);
+
 	auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
 	visualize_mesh(renderer1, matV_, matF_, vecAngles_, interVidx_);
 	renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
@@ -146,7 +195,7 @@ int main(int argc, char** argv)
 	renderWindow->AddRenderer(renderer1);
 
 	auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
-	visualize_mesh(renderer2, oriV, matF_, oriA, interVidx_);
+	visualize_mesh(renderer2, oriV_, matF_, oriAngles_, interVidx_);
 	renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
 
 	//添加文本
@@ -168,10 +217,14 @@ int main(int argc, char** argv)
 	interactor->CreateRepeatingTimer(100);
 
 	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
-	timeCallback->SetCallback(CallbackFunction);
+	timeCallback->SetCallback(TimeCallbackFunction);
 	timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
 
 	interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
+
+	auto keypressCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	keypressCallback->SetCallback(KeypressCallbackFunction);
+	interactor->AddObserver(vtkCommand::KeyPressEvent, keypressCallback);
 
 	//开始
 	renderWindow->Render();
@@ -251,6 +304,7 @@ void compute_length(MatrixTypeConst& V, const Eigen::Matrix2Xi& E, const Eigen::
 	SparseMatrixType A(Vnum, Vnum);
 	VectorType b(vecAngles.array() - 2.0 * M_PI);
 	errsum_ = b.sum();
+
 	std::vector<Tri> triple;
 	for (int j = 0; j < F.cols(); ++j)
 	{
@@ -285,6 +339,7 @@ void compute_length(MatrixTypeConst& V, const Eigen::Matrix2Xi& E, const Eigen::
 	}
 	VectorType phi = A.transpose() * solver.solve(b);
 
+	//使用缩放因子计算出目标长度
 	tl.setConstant(E.cols(), 0);
 	for (int i = 0; i < E.cols(); ++i)
 	{
@@ -303,11 +358,11 @@ void compute_length(MatrixTypeConst& V, const Eigen::Matrix2Xi& E, const Eigen::
 	}
 }
 
-void update_vertices(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, MatrixTypeConst& matAngles,
+void update_vertices(MatrixType& corrV, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, MatrixTypeConst& matAngles,
 	const VectorType& areas, const Eigen::VectorXi& interVidx, const std::vector<int>& boundV,
-	const VectorType& tl, MatrixType& corrV, MatrixType& corrVcordinations, VectorType& corrFid)
+	const VectorType& tl, MatrixType& corrVcordinations, VectorType& corrFid)
 {
-	const int Vnum = V.cols();
+	const int Vnum = corrV.cols();
 	const int Enum = E.cols();
 	SparseMatrixType A;
 	VectorType b;
@@ -319,8 +374,8 @@ void update_vertices(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matr
 	for (int i = 0; i < Enum; ++i)
 	{
 		const Eigen::Vector2i& ev = E.col(i);
-		const PosVector& v0 = V.col(ev(0));
-		const PosVector& v1 = V.col(ev(1));
+		const PosVector& v0 = corrV.col(ev(0));
+		const PosVector& v1 = corrV.col(ev(1));
 		const PosVector e01 = v1 - v0;
 		const double l = e01.norm();
 
@@ -369,10 +424,7 @@ void update_vertices(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matr
 	//}
 
 	//查找当前曲面与原始曲面的对应点关系
-	corrV.resize(3, V.cols());
-	corrVcordinations.resize(3, V.cols());
-	corrFid.resize(V.cols());
-	ABTree_.closest_point(V, corrV, corrFid);
+	ABTree_.closest_point(corrV, corrV, corrFid);
 	ABTree_.barycentric(corrV, corrFid, corrVcordinations);
 
 	//当前网格与初始网格的位置约束
@@ -415,47 +467,110 @@ void update_vertices(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matr
 	}
 
 	A.setFromTriplets(triple.begin(), triple.end());
-	Eigen::SimplicialLLT<SparseMatrixType> solver;
+	Eigen::SimplicialLDLT<SparseMatrixType> solver;
 	solver.compute(A.transpose() * A);
 	if (solver.info() != Eigen::Success)
 	{
 		std::cout << "Update Solve Failed !" << std::endl;
 	}
 	VectorType vecV = solver.solve(A.transpose() * b);
-	V = Eigen::Map<MatrixType>(vecV.data(), 3, V.cols());
+	corrV = Eigen::Map<MatrixType>(vecV.data(), 3, corrV.cols());
 }
 
-void Find_Corr(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F,
+void Find_Corr(MatrixType& corrV, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F,
 	MatrixTypeConst& matAngles, const VectorType& vecAngles, const VectorType& areas,
 	const Eigen::VectorXi& interVidx, const std::vector<int>& boundV,
-	VectorType& tl, MatrixType& corrV, MatrixType& corrVcordinations, VectorType& corrFid)
+	VectorType& tl, MatrixType& corrVcordinations, VectorType& corrFid)
 {
 	//计算系数
-	compute_length(V, E, F, matAngles, vecAngles, areas, interVidx, boundV, tl);
+	compute_length(corrV, E, F, matAngles, vecAngles, areas, interVidx, boundV, tl);
 
 	//使用目标边长更新网格顶点
-	update_vertices(V, E, F, matAngles, areas, interVidx, boundV, tl, corrV, corrVcordinations, corrFid);
+	update_vertices(corrV, E, F, matAngles, areas, interVidx, boundV, tl, corrVcordinations, corrFid);
 }
 
-void cal_corrL(MatrixTypeConst& V, const Eigen::Matrix3Xi& F,	MatrixTypeConst& corrVcordinations, MatrixTypeConst& corrFid,
-	MatrixTypeConst& matAngles, const VectorType& areas, const Eigen::VectorXi& interVidx,	MatrixType& TLap)
+void pre_build_solver(const VectorType& orivecV, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, MatrixTypeConst& corrVcordinations, const VectorType& corrFid,
+	MatrixTypeConst& oriMatAngles, const VectorType& oriAreas, const Eigen::VectorXi& interVidx, SolverType& solver, VectorType& Rhs)
 {
-	const int Vnum = V.cols();
-	SparseMatrixType L;
-	Zombie::cal_cot_laplace(F, matAngles, areas, interVidx, L);
-	VectorType vecL = L * V;
-	Eigen::Map<MatrixType> matL((vecL).data(), 3, Vnum);
-	TLap.resize(3, Vnum);
-	for (int i = 0; i < Vnum; ++i)
+	const int Vnum = corrVcordinations.cols();
+	const int Enum = E.cols();
+
+	SparseMatrixType A;
+	A.resize(Vnum * 3 + Enum * 3, Vnum * 3);
+	std::vector<Tri> triple;
+	//曲面平均曲率约束
+	for (int i = 0; i < F.cols(); ++i)
 	{
-		PosVector tmpL = PosVector::Zero();
-		const PosVector& barCor = corrVcordinations.col(i);
+		const Eigen::VectorXi& fv = F.col(i);
+		const Eigen::VectorXd& ca = oriMatAngles.col(i);
+		for (size_t vi = 0; vi < 3; ++vi)
+		{
+			const int fv0 = fv[vi];
+			const int fv1 = fv[(vi + 1) % 3];
+			const int fv2 = fv[(vi + 2) % 3];
+			if (interVidx(fv0) != -1)
+			{
+				const double temp0 = lambda_corr_ * (1.0 / std::tan(ca[(vi + 1) % 3]) + 1.0 / std::tan(ca[(vi + 2) % 3])) / (2.0 * oriAreas(fv0));
+				const double temp1 = lambda_corr_ * 1.0 / std::tan(ca[(vi + 2) % 3]) / (2.0 * oriAreas(fv0));
+				const double temp2 = lambda_corr_ * 1.0 / std::tan(ca[(vi + 1) % 3]) / (2.0 * oriAreas(fv0));
+				for (int j = 0; j < 3; ++j)
+				{
+					triple.push_back(Tri(fv0 * 3 + j, fv0 * 3 + j, temp0));
+					triple.push_back(Tri(fv0 * 3 + j, fv1 * 3 + j, temp1));
+					triple.push_back(Tri(fv0 * 3 + j, fv2 * 3 + j, temp2));
+				}
+			}
+		}
+	}
+
+	//边长系数约束
+	for (int i = 0; i < Enum; ++i)
+	{
+		const Eigen::Vector2i& ev = E.col(i);
+		//if (interVidx_(ev[0]) != -1 || interVidx_(ev[1]) != -1)
+		{
+			for (int j = 0; j < 3; ++j)
+			{
+				triple.push_back(Tri(3 * Vnum + i * 3 + j, ev[0] * 3 + j, -1.0 * lambda_dev_));
+				triple.push_back(Tri(3 * Vnum + i * 3 + j, ev[1] * 3 + j, 1.0 * lambda_dev_));
+			}
+		}
+	}
+	A.setFromTriplets(triple.begin(), triple.end());
+
+	//预分解
+	solver.compute(A.transpose() * A);
+	if (solver.info() != Eigen::Success)
+	{
+		std::cout << "Pre-composition Solve Failed !" << std::endl;
+	}
+	std::cout << "Pre-composition Solve Succeed !" << std::endl;
+
+	//计算方程右侧上半部分的对应顶点的拉普拉斯坐标
+	VectorType oriL = A * orivecV;
+	Rhs.setConstant(Vnum * 3 + Enum * 3, 0);
+	for (int i = 0; i < corrVcordinations.cols(); ++i)
+	{
+		const VectorType& cpos = corrVcordinations.col(i);
+		const Eigen::Vector3i& cfv = F.col(corrFid(i));
 		for (int j = 0; j < 3; ++j)
 		{
-			tmpL += barCor[j] * matL.col(F(j, corrFid(i)));
+			for (int k = 0; k < 3; ++k)
+			{
+				Rhs(i * 3 + k) += cpos[j] * oriL(cfv[j] * 3 + k);
+			}
 		}
-		TLap.col(i) = tmpL;
 	}
+
+
+	//--------------test----------------
+	reEnerA_ = A;
+	reEnerb_ = Rhs;
+	//----------------------------------
+
+
+
+	Rhs = (A.transpose() * Rhs).eval();
 }
 
 void cal_auxd(MatrixTypeConst& V, const Eigen::Matrix2Xi& E, const VectorType& tl, MatrixType& auxd)
@@ -473,74 +588,43 @@ void cal_auxd(MatrixTypeConst& V, const Eigen::Matrix2Xi& E, const VectorType& t
 	}
 }
 
-void spring_update(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, MatrixTypeConst& TLap,
-	const VectorType& auxd, MatrixTypeConst& matAngles, const VectorType& areas, const Eigen::VectorXi& interVidx)
+void spring_update(MatrixType& V, const Eigen::Matrix2Xi& E, MatrixTypeConst& auxd, const SolverType& solver, const VectorType& Rhs)
 {
 	const int Vnum = V.cols();
 	const int Enum = E.cols();
-	SparseMatrixType A;
-	VectorType b;
-	A.resize(Vnum * 3 + Enum * 3, 3 * Vnum);
-	b.setConstant(Vnum * 3 + Enum * 3, 0);
-	std::vector<Tri> triple;
 
-	//曲面平均曲率约束
-	for (int i = 0; i < F.cols(); ++i)
-	{
-		const Eigen::VectorXi& fv = F.col(i);
-		const Eigen::VectorXd& ca = matAngles.col(i);
-		for (size_t vi = 0; vi < 3; ++vi)
-		{
-			const int fv0 = fv[vi];
-			const int fv1 = fv[(vi + 1) % 3];
-			const int fv2 = fv[(vi + 2) % 3];
-			if (interVidx(fv0) >= 0)
-			{
-				const double temp0 = (1.0 / std::tan(ca[(vi + 1) % 3]) + 1.0 / std::tan(ca[(vi + 2) % 3])) / (2.0 * areas(fv0));
-				const double temp1 = 1.0 / std::tan(ca[(vi + 2) % 3]) / (2.0 * areas(fv0));
-				const double temp2 = 1.0 / std::tan(ca[(vi + 1) % 3]) / (2.0 * areas(fv0));
-				for (int j = 0; j < 3; ++j)
-				{
-					triple.push_back(Tri(fv0 * 3 + j, fv0 * 3 + j, temp0));
-					triple.push_back(Tri(fv0 * 3 + j, fv1 * 3 + j, temp1));
-					triple.push_back(Tri(fv0 * 3 + j, fv2 * 3 + j, temp2));
-					b(fv0 * 3 + j) += TLap(fv0, j);
-				}
-			}
-		}
-	}
-
-	//边长系数约束
+	VectorType b = Rhs;
 	for (int i = 0; i < Enum; ++i)
 	{
 		const Eigen::Vector2i& ev = E.col(i);
+		const PosVector& d = auxd.col(i);
 		for (int j = 0; j < 3; ++j)
 		{
-			triple.push_back(Tri(3 * Vnum + i * 3 + j, ev[0] * 3 + j, -1));
-			triple.push_back(Tri(3 * Vnum + i * 3 + j, ev[1] * 3 + j, 1));
-			b(3 * Vnum + i * 3 + j) = auxd(j, i);
+			b(ev[1] * 3 + j) += 1.0 * lambda_dev_ * d[j];
+			b(ev[0] * 3 + j) += -1.0 * lambda_dev_ * d[j];
 		}
 	}
-	A.setFromTriplets(triple.begin(), triple.end());
-	Eigen::SimplicialLLT<SparseMatrixType> solver;
-	solver.compute(A.transpose() * A);
-	if (solver.info() != Eigen::Success)
-	{
-		std::cout << "Update Solve Failed !" << std::endl;
-	}
-	VectorType vecV = solver.solve(A.transpose() * b);
+	VectorType vecV = solver.solve(b);
+
+	//--------------test----------------
+	reEnerb_.bottomRows(Enum * 3) = Eigen::Map<const VectorType>(auxd.data(), 3 * Enum);
+	reEnergy_ = (reEnerA_ * vecV - reEnerb_).squaredNorm();
+	std::cout << reEnergy_ << std::endl;
+	//----------------------------------
+
+
+
 	V = Eigen::Map<MatrixType>(vecV.data(), 3, V.cols());
 }
 
-void Mesh_Refine(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, MatrixTypeConst& TLap, const VectorType& tl,
-	MatrixTypeConst& matAngles, const VectorType& vecAngles, const VectorType& areas, const Eigen::VectorXi& interVidx)
+void Mesh_Refine(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, const VectorType& tl, SolverType& solver, VectorType& Rhs)
 {
 	//local step：计算辅助向量
 	MatrixType auxd;
 	cal_auxd(V, E, tl, auxd);
 
 	//global step: 更新网格
-	spring_update(V, E, F, TLap, auxd, matAngles, areas, interVidx);
+	spring_update(V, E, auxd, solver, Rhs);
 }
 
 void matrix2vtk(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, vtkPolyData* P)
