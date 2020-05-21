@@ -134,6 +134,12 @@ target_link_libraries(Plan3 Eigen3::Eigen)
 target_link_libraries(Plan3 ${VTK_LIBRARIES})
 target_link_libraries(Plan3 "$ENV{MOSEK_DIR}/bin/mosek9_1.lib")
 
+add_executable(Plan4 "src/Plan4/Plan4.cpp" "src/Plan4/Plan4.h")
+target_link_libraries(Plan4 debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
+target_link_libraries(Plan4 optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
+target_link_libraries(Plan4 Eigen3::Eigen)
+target_link_libraries(Plan4 ${VTK_LIBRARIES})
+
 add_executable(DoF "src/DoF/DoF.cpp" "src/DoF/DoF.h")
 target_link_libraries(DoF debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
 target_link_libraries(DoF optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
