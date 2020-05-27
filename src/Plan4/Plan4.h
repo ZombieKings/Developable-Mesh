@@ -85,7 +85,13 @@ inline bool srhs(VectorType& b, const PosVector& input_vector, size_t idx)
 	return true;
 }
 
-void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix3Xi& F, Eigen::Matrix2Xi& E);
+void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix2Xi& E, Eigen::Matrix3Xi& F, Eigen::Matrix3Xi& FE);
+
+void cal_angles_with_edges(const surface_mesh::Surface_mesh& mesh,
+	VectorType& vecLength,
+	VectorType& vecAngles,
+	MatrixType& matAngles
+);
 
 void compute_length(MatrixTypeConst& V,
 	const Eigen::Matrix2Xi& E,
@@ -110,18 +116,6 @@ void update_vertices(MatrixType& V,
 	MatrixTypeConst& oriV,
 	const Eigen::VectorXi& interVidx,
 	const VectorType& tl,
-	MatrixTypeConst& corrV,
-	MatrixTypeConst& corrNormals);
-
-void Opt_Mesh(MatrixType& V,
-	const Eigen::Matrix2Xi& E,
-	const Eigen::Matrix3Xi& F,
-	MatrixTypeConst& oriV,
-	MatrixTypeConst& matAngles,
-	const VectorType& vecAngles,
-	const VectorType& areas,
-	const Eigen::VectorXi& interVidx,
-	const std::vector<int>& boundV,
 	MatrixTypeConst& corrV,
 	MatrixTypeConst& corrNormals);
 

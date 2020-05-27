@@ -9,10 +9,10 @@ int counter_ = 0;
 int cntsum = 0;
 bool corr_fin_ = false;
 
-double w1_ = 100.0;
-double w2_ = 10.0;
-double alpha_ = 0.7;
-double beta_ = 0.3;
+double w1_ = 1000.0;
+double w2_ = 180.0;
+double alpha_ = 0.30;
+double beta_ = 0.70;
 
 std::vector<int> interV_;
 std::vector<int> boundV_;
@@ -21,6 +21,7 @@ std::vector<int> specialV_;
 MatrixType matV_;
 Eigen::Matrix2Xi matE_;
 Eigen::Matrix3Xi matF_;
+Eigen::Matrix3Xi matFE_;
 Eigen::VectorXi interVidx_;
 
 MatrixType oriV_;
@@ -32,6 +33,8 @@ VectorType tl_;
 MatrixType corrV_;
 MatrixType corrNormals_;
 
+double averE_ = 0;
+double maxE_ = 0;
 
 void TimeCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData))
 {
@@ -40,24 +43,31 @@ void TimeCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventI
 		VectorType vA;
 		MatrixType mA;
 		VectorType as;
-		if (!corr_fin_)
-		{
-			MatrixType lastV(corrV_);
-			Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, vA, as, mA);
-			Opt_Mesh(matV_, matE_, matF_, oriV_, mA, vA, as, interVidx_, boundV_, corrV_, corrNormals_);
-			if ((matV_ - lastV).norm() < DELTA1 || counter_ >= RECORRIT)
-			{
-				update_corr_vertices(matV_, matF_, oriNormals_, ABTree_, corrV_, corrNormals_);
-				corr_fin_ = true;
-				std::cout << "updated corresponde vertices" << std::endl;
-			}
-		}
+		//if (!corr_fin_)
+		//{
+		//	MatrixType lastV(corrV_);
+
+		//	Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, vA, as, mA);
+		//	//计算系数
+		//	VectorType tl;
+		//	compute_length(V, E, F, matAngles, vecAngles, areas, interVidx, boundV, tl);
+
+		//	//使用目标边长更新网格顶点
+		//	update_vertices(V, E, F, oriV, interVidx, tl, corrV, corrNormals);			double lastaverE(averE_);
+		//	averE_ = cal_error(vA, as, interV_, 0);
+		//	maxE_ = cal_error(vA, as, interV_, 1);
+
+		//	if ((matV_ - lastV).norm() < DELTA1 || averE_ > lastaverE || counter_ >= RECORRIT)
+		//	{
+		//		update_corr_vertices(matV_, matF_, oriNormals_, ABTree_, corrV_, corrNormals_);
+		//		corr_fin_ = true;
+		//		//std::cout << "updated corresponde vertices" << std::endl;
+		//	}
+		//}
 
 		counter_++;
 		cntsum++;
-		double averE = cal_error(vA, as, interV_, 0);
-		double maxE = cal_error(vA, as, interV_, 1);
-		std::cout << "第" << cntsum << "次迭代，最大误差为： " << maxE << "，平均误差为： " << averE << std::endl;
+		std::cout << "第" << cntsum << "次迭代，最大误差为： " << maxE_ << "，平均误差为： " << averE_ << std::endl;
 
 		//--------------可视化更新---------------------
 		auto scalar = vtkSmartPointer<vtkDoubleArray>::New();
@@ -105,6 +115,13 @@ int main(int argc, char** argv)
 	{
 		std::cout << "Load failed!" << std::endl;
 	}
+	if (argc == 6)
+	{
+		w1_ = std::stod(argv[2]);
+		w2_ = std::stod(argv[3]);
+		alpha_ = std::stod(argv[4]);
+		beta_ = std::stod(argv[5]);
+	}
 	//收集内部顶点下标
 	interVidx_.setConstant(mesh.n_vertices() + 1, -1);
 	int count = 0;
@@ -123,14 +140,22 @@ int main(int argc, char** argv)
 	interVidx_(mesh.n_vertices()) = count;
 
 	//网格初始信息收集
-	mesh2matrix(mesh, matV_, matF_, matE_);
-	Zombie::cal_angles(matV_, matF_, oriAngles_);
+	mesh2matrix(mesh, matV_, matE_, matF_, matFE_);
+	MatrixType mA;
+	VectorType as;
+	Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, oriAngles_, as, mA);
+
 	DELTA1 = matV_.cols() * 0.001;
 	oriV_ = matV_;
 	Zombie::cal_normal_per_vertex(oriV_, matF_, interVidx_, oriNormals_);
 	//使用初始顶点建立AABBTree
 	ABTree_.build(oriV_, matF_);
 	update_corr_vertices(matV_, matF_, oriNormals_, ABTree_, corrV_, corrNormals_);
+
+	averE_ = cal_error(oriAngles_, as, interV_, 0);
+	maxE_ = cal_error(oriAngles_, as, interV_, 1);
+	std::cout << "初始最大误差为： " << maxE_ << "，平均误差为： " << averE_ << std::endl;
+
 
 	//--------------测试---------------
 
@@ -193,11 +218,12 @@ int main(int argc, char** argv)
 	return EXIT_SUCCESS;
 }
 
-void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix3Xi& F, Eigen::Matrix2Xi& E)
+void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix2Xi& E, Eigen::Matrix3Xi& F, Eigen::Matrix3Xi& FE)
 {
-	F.resize(3, mesh.n_faces());
-	E.resize(2, mesh.n_edges());
 	V.resize(3, mesh.n_vertices());
+	E.resize(2, mesh.n_edges());
+	F.resize(3, mesh.n_faces());
+	FE.resize(3, mesh.n_faces());
 
 	Eigen::VectorXi flag;
 	flag.setConstant(mesh.n_vertices(), 0);
@@ -215,12 +241,41 @@ void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::M
 				flag(fvit.idx()) = 1;
 			}
 		}
+		int j = 0;
+		for (auto feit : mesh.halfedges(fit))
+		{
+			F(j++, fit.idx()) = mesh.edge(feit).idx();
+		}
 	}
 
 	for (auto eit : mesh.edges())
 	{
 		E(0, eit.idx()) = mesh.vertex(eit, 0).idx();
 		E(1, eit.idx()) = mesh.vertex(eit, 1).idx();
+	}
+}
+
+void cal_angles_with_edges(int Vnum, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xi& FE, VectorType& vecLength, VectorType& vecAngles, MatrixType& matAngles)
+{
+	const int DIM = F.rows();
+	matAngles.setConstant(DIM, F.cols(), 0);
+	vecAngles.setConstant(Vnum, 0);
+	for (int f = 0; f < F.cols(); ++f)
+	{
+		const Eigen::VectorXi& fv = F.col(f);
+		const Eigen::VectorXi& fe = FE.col(f);
+		Eigen::Vector3d el(vecLength(fe[2]), vecLength(fe[0]), vecLength(fe[1]));
+
+		for (int vi = 0; vi < DIM; ++vi)
+		{
+			double a = el[vi];
+			double b = el[(vi + 1) & DIM];
+			double c = el[(vi + 2) & DIM];
+			double cosA = (b * b + c * c - a * a) / (2.0 * b * c);
+			const double angle = std::acos(std::max(-1.0, std::min(1.0, cosA)));
+			matAngles(vi, f) = angle;
+			vecAngles(fv(vi)) += angle;
+		}
 	}
 }
 
@@ -415,19 +470,6 @@ void update_vertices(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matr
 	}
 	VectorType vecV = solver.solve(A.transpose() * b);
 	V = Eigen::Map<MatrixType>(vecV.data(), 3, V.cols());
-}
-
-void Opt_Mesh(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, MatrixTypeConst& oriV,
-	MatrixTypeConst& matAngles, const VectorType& vecAngles, const VectorType& areas,
-	const Eigen::VectorXi& interVidx, const std::vector<int>& boundV,
-	MatrixTypeConst& corrV, MatrixTypeConst& corrNormals)
-{
-	//计算系数
-	VectorType tl;
-	compute_length(V, E, F, matAngles, vecAngles, areas, interVidx, boundV, tl);
-
-	//使用目标边长更新网格顶点
-	update_vertices(V, E, F, oriV, interVidx, tl, corrV, corrNormals);
 }
 
 void matrix2vtk(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, vtkPolyData* P)
