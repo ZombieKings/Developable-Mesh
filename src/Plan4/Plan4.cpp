@@ -8,11 +8,12 @@ double DELTA1 = 0.40;
 int counter_ = 0;
 int cntsum = 0;
 bool corr_fin_ = false;
+bool cal_l_ = false;
 
-double w1_ = 1000.0;
-double w2_ = 180.0;
-double alpha_ = 0.30;
-double beta_ = 0.70;
+double w1_ = 100.0;
+double w2_ = 10.0;
+double alpha_ = 0.70;
+double beta_ = 0.30;
 
 std::vector<int> interV_;
 std::vector<int> boundV_;
@@ -22,7 +23,7 @@ MatrixType matV_;
 Eigen::Matrix2Xi matE_;
 Eigen::Matrix3Xi matF_;
 Eigen::Matrix3Xi matFE_;
-Eigen::VectorXi interVidx_;
+Eigen::VectorXi Vtype_;
 
 MatrixType oriV_;
 MatrixType oriNormals_;
@@ -43,27 +44,31 @@ void TimeCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventI
 		VectorType vA;
 		MatrixType mA;
 		VectorType as;
-		//if (!corr_fin_)
-		//{
-		//	MatrixType lastV(corrV_);
+		if (!cal_l_)
+		{
+			Zombie::cal_angles_and_areas_with_edges(matV_.cols(), matF_, matFE_, Vtype_, tl_, as, vA, mA);
+			compute_length(matV_, matE_, matF_, mA, vA, Vtype_, tl_);
+			cal_l_ = true;
+		}
+		else
+		{
+			MatrixType lastV(corrV_);
+			double lastaverE(averE_);
 
-		//	Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, vA, as, mA);
-		//	//计算系数
-		//	VectorType tl;
-		//	compute_length(V, E, F, matAngles, vecAngles, areas, interVidx, boundV, tl);
+			//使用目标边长更新网格顶点
+			update_vertices(matV_, matE_, matF_, oriV_, Vtype_, tl_, corrV_, corrNormals_);
+			Zombie::cal_angles_and_areas(matV_, matF_, Vtype_, vA, as, mA);
 
-		//	//使用目标边长更新网格顶点
-		//	update_vertices(V, E, F, oriV, interVidx, tl, corrV, corrNormals);			double lastaverE(averE_);
-		//	averE_ = cal_error(vA, as, interV_, 0);
-		//	maxE_ = cal_error(vA, as, interV_, 1);
+			averE_ = cal_error(vA, as, Vtype_, 0);
+			maxE_ = cal_error(vA, as, Vtype_, 1);
 
-		//	if ((matV_ - lastV).norm() < DELTA1 || averE_ > lastaverE || counter_ >= RECORRIT)
-		//	{
-		//		update_corr_vertices(matV_, matF_, oriNormals_, ABTree_, corrV_, corrNormals_);
-		//		corr_fin_ = true;
-		//		//std::cout << "updated corresponde vertices" << std::endl;
-		//	}
-		//}
+			if ((matV_ - lastV).norm() < DELTA1 || averE_ > lastaverE || counter_ >= RECORRIT)
+			{
+				update_corr_vertices(matV_, matF_, oriNormals_, ABTree_, corrV_, corrNormals_);
+				corr_fin_ = true;
+				//std::cout << "updated corresponde vertices" << std::endl;
+			}
+		}
 
 		counter_++;
 		cntsum++;
@@ -75,7 +80,7 @@ void TimeCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventI
 		scalar->SetNumberOfTuples(matV_.cols());
 		for (auto i = 0; i < vA.size(); ++i)
 		{
-			if (interVidx_(i) != -1)
+			if (Vtype_(i) != -1)
 				scalar->InsertTuple1(i, abs(2.0f * M_PI - vA(i)));
 			else
 				scalar->InsertTuple1(i, 0);
@@ -122,111 +127,102 @@ int main(int argc, char** argv)
 		alpha_ = std::stod(argv[4]);
 		beta_ = std::stod(argv[5]);
 	}
-	//收集内部顶点下标
-	interVidx_.setConstant(mesh.n_vertices() + 1, -1);
-	int count = 0;
-	for (const auto& vit : mesh.vertices())
-	{
-		if (!mesh.is_boundary(vit))
-		{
-			interV_.push_back(vit.idx());
-			interVidx_(vit.idx()) = count++;
-		}
-		else
-		{
-			boundV_.push_back(vit.idx());
-		}
-	}
-	interVidx_(mesh.n_vertices()) = count;
 
 	//网格初始信息收集
-	mesh2matrix(mesh, matV_, matE_, matF_, matFE_);
+	getMeshInfo(mesh, oriV_, matE_, matF_, matFE_, Vtype_, tl_);
+
 	MatrixType mA;
 	VectorType as;
-	Zombie::cal_angles_and_areas(matV_, matF_, interVidx_, oriAngles_, as, mA);
+	Zombie::cal_angles_and_areas(oriV_, matF_, Vtype_, oriAngles_, as, mA);
+	Zombie::cal_normal_per_vertex(oriV_, matF_, Vtype_, oriNormals_);
 
-	DELTA1 = matV_.cols() * 0.001;
-	oriV_ = matV_;
-	Zombie::cal_normal_per_vertex(oriV_, matF_, interVidx_, oriNormals_);
+	DELTA1 = oriV_.cols() * 0.001;
+	matV_ = oriV_;
+
 	//使用初始顶点建立AABBTree
 	ABTree_.build(oriV_, matF_);
-	update_corr_vertices(matV_, matF_, oriNormals_, ABTree_, corrV_, corrNormals_);
+	update_corr_vertices(oriV_, matF_, oriNormals_, ABTree_, corrV_, corrNormals_);
 
-	averE_ = cal_error(oriAngles_, as, interV_, 0);
-	maxE_ = cal_error(oriAngles_, as, interV_, 1);
+	averE_ = cal_error(oriAngles_, as, Vtype_, 0);
+	maxE_ = cal_error(oriAngles_, as, Vtype_, 1);
 	std::cout << "初始最大误差为： " << maxE_ << "，平均误差为： " << averE_ << std::endl;
 
-
 	//--------------测试---------------
+	VectorType vA;
+	Zombie::cal_angles_and_areas_with_edges(matV_.cols(), matF_, matFE_, Vtype_, tl_, as, vA, mA);
+	compute_length(matV_, matE_, matF_, mA, vA, Vtype_, tl_);
+	Zombie::cal_angles_and_areas_with_edges(matV_.cols(), matF_, matFE_, Vtype_, tl_, as, vA, mA);
 
-	//---------------可视化---------------
-	//创建窗口
-	auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
-	renderWindow->SetSize(1600, 800);
+	std::cout << "理想曲面的最大误差为： " << cal_error(vA, as, Vtype_, 1) << "，平均误差为： " << cal_error(vA, as, Vtype_, 0) << std::endl;
 
-	auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
-	visualize_mesh(renderer1, matV_, matF_, oriAngles_, interVidx_);
-	renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
+	////---------------可视化---------------
+	////创建窗口
+	//auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
+	//renderWindow->SetSize(1600, 800);
 
-	//添加文本
-	auto textActor1 = vtkSmartPointer<vtkTextActor>::New();
-	textActor1->SetInput("Result Mesh");
-	textActor1->GetTextProperty()->SetFontSize(33);
-	textActor1->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
-	renderer1->AddActor2D(textActor1);
+	//auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
+	//visualize_mesh(renderer1, matV_, matF_, oriAngles_, Vtype_);
+	//renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
 
-	//视角设置
-	renderer1->ResetCamera();
-	renderWindow->AddRenderer(renderer1);
+	////添加文本
+	//auto textActor1 = vtkSmartPointer<vtkTextActor>::New();
+	//textActor1->SetInput("Result Mesh");
+	//textActor1->GetTextProperty()->SetFontSize(33);
+	//textActor1->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	//renderer1->AddActor2D(textActor1);
 
-	auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
-	visualize_mesh(renderer2, oriV_, matF_, oriAngles_, interVidx_);
-	renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
+	////视角设置
+	//renderer1->ResetCamera();
+	//renderWindow->AddRenderer(renderer1);
 
-	//添加文本
-	auto textActor2 = vtkSmartPointer<vtkTextActor>::New();
-	textActor2->SetInput("Original Mesh");
-	textActor2->GetTextProperty()->SetFontSize(33);
-	textActor2->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
-	renderer2->AddActor2D(textActor2);
+	//auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
+	//visualize_mesh(renderer2, oriV_, matF_, oriAngles_, Vtype_);
+	//renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
 
-	//视角设置
-	renderer2->ResetCamera();
-	renderWindow->AddRenderer(renderer2);
+	////添加文本
+	//auto textActor2 = vtkSmartPointer<vtkTextActor>::New();
+	//textActor2->SetInput("Original Mesh");
+	//textActor2->GetTextProperty()->SetFontSize(33);
+	//textActor2->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	//renderer2->AddActor2D(textActor2);
 
-	auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
-	interactor->SetRenderWindow(renderWindow);
-	auto style = vtkInteractorStyleTrackballCamera::New();
-	interactor->SetInteractorStyle(style);
-	interactor->Initialize();
-	interactor->CreateRepeatingTimer(100);
+	////视角设置
+	//renderer2->ResetCamera();
+	//renderWindow->AddRenderer(renderer2);
 
-	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
-	timeCallback->SetCallback(TimeCallbackFunction);
-	timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
+	//auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+	//interactor->SetRenderWindow(renderWindow);
+	//auto style = vtkInteractorStyleTrackballCamera::New();
+	//interactor->SetInteractorStyle(style);
+	//interactor->Initialize();
+	//interactor->CreateRepeatingTimer(100);
 
-	interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
+	//auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	//timeCallback->SetCallback(TimeCallbackFunction);
+	//timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
 
-	auto keypressCallback = vtkSmartPointer<vtkCallbackCommand>::New();
-	keypressCallback->SetCallback(KeypressCallbackFunction);
-	interactor->AddObserver(vtkCommand::KeyPressEvent, keypressCallback);
+	//interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
 
-	//开始
-	renderWindow->Render();
-	interactor->Start();
+	//auto keypressCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	//keypressCallback->SetCallback(KeypressCallbackFunction);
+	//interactor->AddObserver(vtkCommand::KeyPressEvent, keypressCallback);
+
+	////开始
+	//renderWindow->Render();
+	//interactor->Start();
 
 	return EXIT_SUCCESS;
 }
 
-void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix2Xi& E, Eigen::Matrix3Xi& F, Eigen::Matrix3Xi& FE)
+void getMeshInfo(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix2Xi& E, Eigen::Matrix3Xi& F, Eigen::Matrix3Xi& FE, Eigen::VectorXi& Vtype, VectorType& eLength)
 {
 	V.resize(3, mesh.n_vertices());
 	E.resize(2, mesh.n_edges());
 	F.resize(3, mesh.n_faces());
 	FE.resize(3, mesh.n_faces());
+	Vtype.setConstant(mesh.n_vertices(), 0);
+	eLength.setConstant(mesh.n_edges(), 0);
 
-	Eigen::VectorXi flag;
-	flag.setConstant(mesh.n_vertices(), 0);
 	for (auto fit : mesh.faces())
 	{
 		int i = 0;
@@ -235,16 +231,21 @@ void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::M
 			//save faces informations
 			F(i++, fit.idx()) = fvit.idx();
 			//save vertices informations
-			if (!flag(fvit.idx()))
+			if (Vtype(fvit.idx()) == 0)
 			{
 				V.col(fvit.idx()) = Eigen::Map<const Eigen::Vector3f>(mesh.position(surface_mesh::Surface_mesh::Vertex(fvit.idx())).data()).cast<DataType>();
-				flag(fvit.idx()) = 1;
+				//收集顶点信息
+				//内部顶点为1、边界顶点为-1
+				if (mesh.is_boundary(fvit))
+					Vtype(fvit.idx()) = -1;
+				else
+					Vtype(fvit.idx()) = 1;
 			}
 		}
 		int j = 0;
 		for (auto feit : mesh.halfedges(fit))
 		{
-			F(j++, fit.idx()) = mesh.edge(feit).idx();
+			FE(j++, fit.idx()) = mesh.edge(feit).idx();
 		}
 	}
 
@@ -252,61 +253,46 @@ void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::M
 	{
 		E(0, eit.idx()) = mesh.vertex(eit, 0).idx();
 		E(1, eit.idx()) = mesh.vertex(eit, 1).idx();
+		eLength(eit.idx()) = mesh.edge_length(eit);
 	}
 }
 
-void cal_angles_with_edges(int Vnum, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xi& FE, VectorType& vecLength, VectorType& vecAngles, MatrixType& matAngles)
-{
-	const int DIM = F.rows();
-	matAngles.setConstant(DIM, F.cols(), 0);
-	vecAngles.setConstant(Vnum, 0);
-	for (int f = 0; f < F.cols(); ++f)
-	{
-		const Eigen::VectorXi& fv = F.col(f);
-		const Eigen::VectorXi& fe = FE.col(f);
-		Eigen::Vector3d el(vecLength(fe[2]), vecLength(fe[0]), vecLength(fe[1]));
-
-		for (int vi = 0; vi < DIM; ++vi)
-		{
-			double a = el[vi];
-			double b = el[(vi + 1) & DIM];
-			double c = el[(vi + 2) & DIM];
-			double cosA = (b * b + c * c - a * a) / (2.0 * b * c);
-			const double angle = std::acos(std::max(-1.0, std::min(1.0, cosA)));
-			matAngles(vi, f) = angle;
-			vecAngles(fv(vi)) += angle;
-		}
-	}
-}
-
-double cal_error(const VectorType& vecAngles, const VectorType& areas, const std::vector<int>& interIdx, int flag)
+double cal_error(const VectorType& vecAngles, const VectorType& areas, const Eigen::VectorXi& Vtype, int flag)
 {
 	//计算最大误差或平均误差
 	if (flag)
 	{
 		size_t idx = 0;
 		double max = 0;
-		for (size_t i = 0; i < interIdx.size(); ++i)
+		for (int i = 0; i < areas.size(); ++i)
 		{
-			const double e = abs(2.0 * M_PI - vecAngles(interIdx[i])) / areas(interIdx[i]);
-			//max = e > max ? e : max;
-			if (e > max)
+			if (Vtype(i) == 1)
 			{
-				max = e;
-				idx = i;
+				const double e = abs(2.0 * M_PI - vecAngles(i)) / areas(i);
+				//max = e > max ? e : max;
+				if (e > max)
+				{
+					max = e;
+					idx = i;
+				}
 			}
 		}
-		//std::cout << idx << std::endl;
 		return max;
 	}
 	else
 	{
 		double averange = 0;
-		for (size_t i = 0; i < interIdx.size(); ++i)
+		double cnt = 0.0;
+		for (int i = 0; i < areas.size(); ++i)
 		{
-			averange += abs(2.0 * M_PI - vecAngles(interIdx[i])) / areas(interIdx[i]);
+			if (Vtype(i) == 1)
+			{
+				++cnt;
+				const double e = abs(2.0 * M_PI - vecAngles(i)) / areas(i);
+				averange += abs(2.0 * M_PI - vecAngles(i)) / areas(i);
+			}
 		}
-		averange /= double(interIdx.size());
+		averange /= cnt;
 		return averange;
 	}
 }
@@ -338,8 +324,8 @@ void update_corr_vertices(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixT
 	}
 }
 
-void compute_length(MatrixTypeConst& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, MatrixTypeConst& matAngles,
-	const VectorType& vecAngles, const VectorType& areas, const Eigen::VectorXi& interVidx, const std::vector<int>& boundV,
+void compute_length(MatrixTypeConst& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F,
+	MatrixTypeConst& matAngles, const VectorType& vecAngles, const Eigen::VectorXi& Vtype,
 	VectorType& tl)
 {
 	const int Vnum = V.cols();
@@ -356,32 +342,34 @@ void compute_length(MatrixTypeConst& V, const Eigen::Matrix2Xi& E, const Eigen::
 			const int fv0 = fv[vi];
 			const int fv1 = fv[(vi + 1) % 3];
 			const int fv2 = fv[(vi + 2) % 3];
-			if (interVidx(fv0) != -1)
+			if (Vtype(fv0) == 1)
 			{
-				triple.push_back(Tri(fv0, fv0, (1.0 / std::tan(ca[(vi + 1) % 3]) + 1.0 / std::tan(ca[(vi + 2) % 3])) / (2.0 * areas(fv0))));
-				triple.push_back(Tri(fv0, fv1, -1.0 / std::tan(ca[(vi + 2) % 3]) / (2.0 * areas(fv0))));
-				triple.push_back(Tri(fv0, fv2, -1.0 / std::tan(ca[(vi + 1) % 3]) / (2.0 * areas(fv0))));
+				triple.push_back(Tri(fv0, fv0, (1.0 / std::tan(ca[(vi + 1) % 3]) + 1.0 / std::tan(ca[(vi + 2) % 3])) / 2.0));
+				triple.push_back(Tri(fv0, fv1, -1.0 / std::tan(ca[(vi + 2) % 3]) / 2.0));
+				triple.push_back(Tri(fv0, fv2, -1.0 / std::tan(ca[(vi + 1) % 3]) / 2.0));
 			}
 		}
 	}
 
-	for (auto i : boundV)
-	{
-		triple.push_back(Tri(i, i, 1.0));
-		b(i) = 0;
-	}
+	for (int i = 0; i < Vtype.size(); ++i)
+		if (Vtype(i) == -1)
+		{
+			triple.push_back(Tri(i, i, 1.0));
+			b(i) = 0;
+		}
 
 	A.setFromTriplets(triple.begin(), triple.end());
+	SparseMatrixType AT = A.transpose();
 	Eigen::SimplicialLDLT<SparseMatrixType> solver;
-	solver.compute(A * A.transpose());
+	solver.compute(AT * A);
 	if (solver.info() != Eigen::Success)
 	{
 		std::cout << "Scales Solve Failed !" << std::endl;
 	}
-	VectorType phi = A.transpose() * solver.solve(b);
+	VectorType phi = AT * solver.solve(b);
 
+	//std::cout << phi << std::endl;
 	//使用缩放因子计算出目标长度
-	tl.setConstant(E.cols(), 0);
 	for (int i = 0; i < E.cols(); ++i)
 	{
 		const Eigen::Vector2i ev = E.col(i);
@@ -393,9 +381,7 @@ void compute_length(MatrixTypeConst& V, const Eigen::Matrix2Xi& E, const Eigen::
 		else
 			s = (exp(p0) - exp(p1)) / (p0 - p1);
 
-		const PosVector& v0 = V.col(ev(0));
-		const PosVector& v1 = V.col(ev(1));
-		tl(i) = (v1 - v0).norm() * s;
+		tl(i) *= s;
 	}
 }
 

@@ -85,22 +85,20 @@ inline bool srhs(VectorType& b, const PosVector& input_vector, size_t idx)
 	return true;
 }
 
-void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix2Xi& E, Eigen::Matrix3Xi& F, Eigen::Matrix3Xi& FE);
-
-void cal_angles_with_edges(const surface_mesh::Surface_mesh& mesh,
-	VectorType& vecLength,
-	VectorType& vecAngles,
-	MatrixType& matAngles
-);
+void getMeshInfo(const surface_mesh::Surface_mesh& mesh,
+	MatrixType& V,
+	Eigen::Matrix2Xi& E,
+	Eigen::Matrix3Xi& F,
+	Eigen::Matrix3Xi& FE,
+	Eigen::VectorXi& Vtype, 
+	VectorType& eLength);
 
 void compute_length(MatrixTypeConst& V,
 	const Eigen::Matrix2Xi& E,
 	const Eigen::Matrix3Xi& F,
 	MatrixTypeConst& matAngles,
 	const VectorType& vecAngles,
-	const VectorType& areas,
-	const Eigen::VectorXi& interVidx,
-	const std::vector<int>& boundV,
+	const Eigen::VectorXi& Vtype,
 	VectorType& tl);
 
 void update_corr_vertices(MatrixTypeConst& V,
@@ -119,7 +117,7 @@ void update_vertices(MatrixType& V,
 	MatrixTypeConst& corrV,
 	MatrixTypeConst& corrNormals);
 
-double cal_error(const VectorType& vAngles, const VectorType& areas, const std::vector<int>& interIdx, int flag);
+double cal_error(const VectorType& vAngles, const VectorType& areas, const Eigen::VectorXi& Vtype, int flag);
 
 void TimeCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
 void matrix2vtk(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, vtkPolyData* P);
