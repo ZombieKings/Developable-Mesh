@@ -54,6 +54,7 @@
 #include "../tools/cal_laplacian.h"
 #include "../tools/cal_normals.h"
 #include "../tools/AABBSearcher.h"
+#include "../tools/cal_edge_length.h"
 
 typedef double DataType;
 typedef Eigen::Triplet<DataType> Tri;
@@ -98,6 +99,7 @@ void compute_length(MatrixTypeConst& V,
 	const Eigen::Matrix3Xi& F,
 	MatrixTypeConst& matAngles,
 	const VectorType& vecAngles,
+	const VectorType& vecAreas,
 	const Eigen::VectorXi& Vtype,
 	VectorType& tl);
 

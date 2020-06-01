@@ -11,22 +11,19 @@ namespace Zombie
 
 	void cal_angles(const Eigen::Matrix3Xd& V,
 		const Eigen::MatrixXi& F,
-		const Eigen::VectorXi& Vtype,
 		Eigen::VectorXd& vecAngles,
 		Eigen::Matrix3Xd& matAngles);
 
 	void cal_angles_and_areas(const Eigen::Matrix3Xd& V,
 		const Eigen::MatrixXi& F,
-		const Eigen::VectorXi& Vtype,
 		Eigen::VectorXd& vecAngles,
 		Eigen::VectorXd& areas,
 		Eigen::Matrix3Xd& matAngles);
 
 	void cal_angles_and_areas_with_edges(int Vnum,
 		const Eigen::Matrix3Xi& F,
-		const Eigen::Matrix3Xi& FE, 
-		const Eigen::VectorXi& Vtype,
-		Eigen::VectorXd& vecLength,
+		const Eigen::Matrix3Xi& FE,
+		const Eigen::VectorXd& vecLength,
 		Eigen::VectorXd& vecAreas,
 		Eigen::VectorXd& vecAngles,
 		Eigen::Matrix3Xd& matAngles);
