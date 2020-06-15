@@ -1,7 +1,7 @@
 ﻿#include "visualizer.h"
 
 template<typename DerivedV, typename DerivedF>
-void matrix2vtk(const Eigen::MatrixBase<DerivedV>& V,
+void Zombie::matrix2vtk(const Eigen::MatrixBase<DerivedV>& V,
 	const Eigen::MatrixBase<DerivedF>& F,
 	vtkPolyData* P)
 {
@@ -23,7 +23,7 @@ void matrix2vtk(const Eigen::MatrixBase<DerivedV>& V,
 	P->SetPolys(faces);
 }
 
-void MakeLUT(vtkDoubleArray* Scalar, vtkLookupTable* LUT)
+void Zombie::MakeLUT(vtkDoubleArray* Scalar, vtkLookupTable* LUT)
 {
 	auto ctf = vtkSmartPointer<vtkColorTransferFunction>::New();
 	ctf->SetColorSpaceToHSV();
@@ -45,7 +45,7 @@ void MakeLUT(vtkDoubleArray* Scalar, vtkLookupTable* LUT)
 }
 
 template<typename DerivedV, typename DerivedF, typename DerivedA, typename DerivedIDX>
-void visualize_mesh(vtkRenderer* Renderer,
+void Zombie::visualize_mesh(vtkRenderer* Renderer,
 	const Eigen::MatrixBase<DerivedV>& V,
 	const Eigen::MatrixBase<DerivedF>& F,
 	const Eigen::PlainObjectBase<DerivedA>& vecAngles,
@@ -80,8 +80,8 @@ void visualize_mesh(vtkRenderer* Renderer,
 	auto polyMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
 	polyMapper->SetInputData(P);
 	polyMapper->SetLookupTable(lut);
-	//polyMapper->SetScalarRange(scalar->GetValueRange()[0], scalar->GetValueRange()[1]);
-	polyMapper->SetScalarRange(scalar->GetValueRange()[0], 0.025);
+	polyMapper->SetScalarRange(scalar->GetValueRange()[0], scalar->GetValueRange()[1]);
+	//polyMapper->SetScalarRange(scalar->GetValueRange()[0], 0.025);
 
 	auto polyActor = vtkSmartPointer<vtkActor>::New();
 	polyActor->SetMapper(polyMapper);

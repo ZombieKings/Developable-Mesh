@@ -49,24 +49,52 @@
 #include <vtkSelection.h>
 #include <vtkSelectionNode.h>
 #include <vtkExtractSelection.h>
+namespace Zombie
+{
+	void TimeCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
+	void KeypressCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* vtkNotUsed(clientData), void* vtkNotUsed(callData));
 
-void TimeCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
-void KeypressCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* vtkNotUsed(clientData), void* vtkNotUsed(callData));
+	// Construct a polydata object with input vertices and faces datas 
+	//
+	// Inputs:
+	//   V  3 by #V list of vertices position
+	//
+	//   F  3 by #F list of mesh faces (must be triangles)
+	//
+	// Outputs:
+	//   P  vtkPolydata object
+	template<typename DerivedV, typename DerivedF>
+	void matrix2vtk(const Eigen::MatrixBase<DerivedV>& V,
+		const Eigen::MatrixBase<DerivedF>& F,
+		vtkPolyData* P);
 
-template<typename DerivedV, typename DerivedF>
-void matrix2vtk(const Eigen::MatrixBase<DerivedV>& V,
-	const Eigen::MatrixBase<DerivedF>& F,
-	vtkPolyData* P);
+	// Build a look up table for vertices colors with input scalar
+	// Inputs:
+	//   Scalar  #V list of vertices position
+	//
+	// Outputs:
+	//   LUT  256 list of color, a vtkLookupTable object
+	void MakeLUT(vtkDoubleArray* Scalar, vtkLookupTable* LUT);
 
-void MakeLUT(vtkDoubleArray* Scalar, vtkLookupTable* LUT);
-
-template<typename DerivedV, typename DerivedF, typename DerivedA, typename DerivedIDX>
-void visualize_mesh(vtkRenderer* Renderer, 
-	const Eigen::MatrixBase<DerivedV>& V,
-	const Eigen::MatrixBase<DerivedF>& F,
-	const Eigen::PlainObjectBase<DerivedA>& vecAngles,
-	const Eigen::PlainObjectBase<DerivedIDX>& Vtype);
-
+	// Visualize a surface mesh with input information
+	//
+	// Inputs:
+	//	Renderer the vtkRenderer where the mesh will displays.
+	//
+	//  V  3 by #V list of vertices position
+	//
+	//  F  3 by #F list of mesh faces (must be triangles)
+	//
+	//	vecAngles #V list of vertices internal angles for visualize errors.
+	//
+	//	Vtype #V list of vertex type, -1 for boundary vertices, 1 for internal vertices, 2 for special vertices.
+	template<typename DerivedV, typename DerivedF, typename DerivedA, typename DerivedIDX>
+	void visualize_mesh(vtkRenderer* Renderer,
+		const Eigen::MatrixBase<DerivedV>& V,
+		const Eigen::MatrixBase<DerivedF>& F,
+		const Eigen::PlainObjectBase<DerivedA>& vecAngles,
+		const Eigen::PlainObjectBase<DerivedIDX>& Vtype);
+};
 #include "visualizer.cpp"
 
 #endif 
