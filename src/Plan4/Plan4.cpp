@@ -34,6 +34,8 @@ VectorType tl_;
 MatrixType corrV_;
 MatrixType corrNormals_;
 
+VectorType phi_;
+
 double averE_ = 0;
 double maxE_ = 0;
 
@@ -151,67 +153,79 @@ int main(int argc, char** argv)
 	VectorType vA;
 	Zombie::cal_angles_and_areas_with_edges(matV_.cols(), matF_, matFE_, tl_, as, vA, mA);
 	//std::cout << oriAngles_ - vA << std::endl;
-	std::cout << vA.sum() / 2.0 / M_PI << std::endl;
+	std::cout << vA.sum() / 2.0 / M_PI - vA.cols() << std::endl;
 	compute_length(matV_, matE_, matF_, mA, vA, as, Vtype_, tl_);
 	Zombie::cal_angles_and_areas_with_edges(matV_.cols(), matF_, matFE_, tl_, as, vA, mA);
 
 	std::cout << "理想曲面的最大误差为： " << cal_error(vA, as, Vtype_, 1) << "，平均误差为： " << cal_error(vA, as, Vtype_, 0) << std::endl;
 
-	//---------------可视化---------------
-	//创建窗口
-	auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
-	renderWindow->SetSize(1600, 800);
+	if (data_check(matV_, matFE_, mA, tl_))
+		std::cout << "Data OK!" << std::endl;
+	else
+		std::cout << "Invalid data!" << std::endl;
 
-	auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
-	visualize_mesh(renderer1, matV_, matF_, vA, Vtype_);
-	renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
 
-	//添加文本
-	auto textActor1 = vtkSmartPointer<vtkTextActor>::New();
-	textActor1->SetInput("Result Mesh");
-	textActor1->GetTextProperty()->SetFontSize(33);
-	textActor1->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
-	renderer1->AddActor2D(textActor1);
+	//std::ofstream f("1.vtk");
+	//tri2vtk(f, matV_.data(), matV_.cols(), matF_.data(), matF_.cols());
+	//point_data(f, phi_.data(), phi_.size(), "phi");
+	//f.close();
 
-	//视角设置
-	renderer1->ResetCamera();
-	renderWindow->AddRenderer(renderer1);
 
-	auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
-	visualize_mesh(renderer2, oriV_, matF_, oriAngles_, Vtype_);
-	renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
+	////---------------可视化---------------
+	////创建窗口
+	//auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
+	//renderWindow->SetSize(1600, 800);
 
-	//添加文本
-	auto textActor2 = vtkSmartPointer<vtkTextActor>::New();
-	textActor2->SetInput("Original Mesh");
-	textActor2->GetTextProperty()->SetFontSize(33);
-	textActor2->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
-	renderer2->AddActor2D(textActor2);
+	//auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
+	//visualize_mesh(renderer1, matV_, matF_, phi_, Vtype_);
+	//renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
 
-	//视角设置
-	renderer2->ResetCamera();
-	renderWindow->AddRenderer(renderer2);
+	////添加文本
+	//auto textActor1 = vtkSmartPointer<vtkTextActor>::New();
+	//textActor1->SetInput("Result Mesh");
+	//textActor1->GetTextProperty()->SetFontSize(33);
+	//textActor1->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	//renderer1->AddActor2D(textActor1);
 
-	auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
-	interactor->SetRenderWindow(renderWindow);
-	auto style = vtkInteractorStyleTrackballCamera::New();
-	interactor->SetInteractorStyle(style);
-	interactor->Initialize();
-	//interactor->CreateRepeatingTimer(100);
+	////视角设置
+	//renderer1->ResetCamera();
+	//renderWindow->AddRenderer(renderer1);
 
-	//auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
-	//timeCallback->SetCallback(TimeCallbackFunction);
-	//timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
+	//auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
+	//visualize_mesh(renderer2, oriV_, matF_, oriAngles_, Vtype_);
+	//renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
 
-	//interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
+	////添加文本
+	//auto textActor2 = vtkSmartPointer<vtkTextActor>::New();
+	//textActor2->SetInput("Original Mesh");
+	//textActor2->GetTextProperty()->SetFontSize(33);
+	//textActor2->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	//renderer2->AddActor2D(textActor2);
 
-	//auto keypressCallback = vtkSmartPointer<vtkCallbackCommand>::New();
-	//keypressCallback->SetCallback(KeypressCallbackFunction);
-	//interactor->AddObserver(vtkCommand::KeyPressEvent, keypressCallback);
+	////视角设置
+	//renderer2->ResetCamera();
+	//renderWindow->AddRenderer(renderer2);
 
-	//开始
-	renderWindow->Render();
-	interactor->Start();
+	//auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+	//interactor->SetRenderWindow(renderWindow);
+	//auto style = vtkInteractorStyleTrackballCamera::New();
+	//interactor->SetInteractorStyle(style);
+	//interactor->Initialize();
+	////interactor->CreateRepeatingTimer(100);
+
+	////auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	////timeCallback->SetCallback(TimeCallbackFunction);
+	////timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
+
+	////interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
+
+	////auto keypressCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	////keypressCallback->SetCallback(KeypressCallbackFunction);
+	////interactor->AddObserver(vtkCommand::KeyPressEvent, keypressCallback);
+
+	////开始
+	//renderWindow->Render();
+	//interactor->Start();
 
 	return EXIT_SUCCESS;
 }
@@ -299,6 +313,28 @@ double cal_error(const VectorType& vecAngles, const VectorType& areas, const Eig
 	}
 }
 
+bool data_check(MatrixTypeConst& V, const Eigen::Matrix3Xi& FE, MatrixTypeConst& mA, VectorType& l)
+{
+	for (int i = 0; i < mA.cols(); ++i)
+		for (int j = 0; j < 3; ++j)
+			if (mA(j, i) < 0 || mA(j, i) > M_PI)
+			{
+				std::cout << "Invalid angle data !" << std::endl;
+				return false;
+			}
+
+
+	std::cout << "Angle data is ok!" << std::endl;
+
+	for (int i = 0; i < FE.cols(); ++i)
+	{
+		const Eigen::Vector3i& fe = FE.col(i);
+		if(l(fe(0)) + l(fe(1)) <= l(fe(2)))
+			return false;
+	}
+	return true;
+}
+
 void update_corr_vertices(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, MatrixTypeConst& oriN,
 	ABTreeType& ABTree, MatrixType& corrV, MatrixType& corrVnomal)
 {
@@ -378,7 +414,9 @@ void compute_length(MatrixTypeConst& V, const Eigen::Matrix2Xi& E, const Eigen::
 		std::cout << "Scales Solve Failed !" << std::endl;
 	}
 	VectorType phi = solver.solve(AT * b);
-
+	for (int i = 0; i < phi.size(); ++i)
+		phi(i) = abs(phi(i)) < 1e-8 ? 0 : phi(i);
+	phi_ = phi;
 	//for (int i = 0; i < phi.size(); ++i)
 	//	std::cout << i << " " << b(i) << " " << phi(i) << std::endl;
 
@@ -393,7 +431,7 @@ void compute_length(MatrixTypeConst& V, const Eigen::Matrix2Xi& E, const Eigen::
 			s = exp(p0);
 		else
 			s = (exp(p0) - exp(p1)) / (p0 - p1);
-		std::cout << tl(i) << " " << s << " " << phi(ev(0)) << " " << phi(ev(1)) << std::endl;
+		//std::cout << tl(i) << " " << s << " " << phi(ev(0)) << " " << phi(ev(1)) << std::endl;
 		tl(i) *= s;
 	}
 }
@@ -540,8 +578,8 @@ void visualize_mesh(vtkRenderer* Renderer, MatrixTypeConst& V, const Eigen::Matr
 	auto polyMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
 	polyMapper->SetInputData(P);
 	polyMapper->SetLookupTable(lut);
-	//polyMapper->SetScalarRange(scalar->GetValueRange()[0], scalar->GetValueRange()[1]);
-	polyMapper->SetScalarRange(scalar->GetValueRange()[0], 0.025);
+	polyMapper->SetScalarRange(scalar->GetValueRange()[0], scalar->GetValueRange()[1]);
+	//polyMapper->SetScalarRange(scalar->GetValueRange()[0], 0.025);
 
 	auto polyActor = vtkSmartPointer<vtkActor>::New();
 	polyActor->SetMapper(polyMapper);

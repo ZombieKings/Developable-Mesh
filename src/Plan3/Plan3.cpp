@@ -612,8 +612,6 @@ void spring_update(MatrixType& V, const Eigen::Matrix2Xi& E, MatrixTypeConst& au
 	std::cout << reEnergy_ << std::endl;
 	//----------------------------------
 
-
-
 	V = Eigen::Map<MatrixType>(vecV.data(), 3, V.cols());
 }
 

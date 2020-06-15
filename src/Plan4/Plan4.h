@@ -3,6 +3,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <algorithm>
+#include <fstream>
 
 #include <surface_mesh/Surface_mesh.h>
 
@@ -55,6 +56,8 @@
 #include "../tools/cal_normals.h"
 #include "../tools/AABBSearcher.h"
 #include "../tools/cal_edge_length.h"
+
+#include "../vtk.h"
 
 typedef double DataType;
 typedef Eigen::Triplet<DataType> Tri;
@@ -120,6 +123,8 @@ void update_vertices(MatrixType& V,
 	MatrixTypeConst& corrNormals);
 
 double cal_error(const VectorType& vAngles, const VectorType& areas, const Eigen::VectorXi& Vtype, int flag);
+
+bool data_check(MatrixTypeConst& V, const Eigen::Matrix3Xi& FE, MatrixTypeConst& mA, VectorType& l);
 
 void TimeCallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
 void matrix2vtk(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, vtkPolyData* P);
