@@ -5,9 +5,21 @@
 
 namespace Zombie
 {
-	template <typename DerivedV, typename DerivedE, typename DerivedL>
-	void cal_edge_length(const Eigen::MatrixBase<DerivedV>& V,
-		const Eigen::MatrixBase<DerivedE>& E,
+	// Compute edge lengths for a triangle mesh 
+	//
+	// Inputs:
+	//   V  3 by #V list of vertices position
+	//
+	//   F  3 by #F list of mesh faces (must be triangles)
+	//		or 2 by #E list of edges
+	//
+	// Outputs:
+	//   L  1|3 by #F list of edge lengths 
+	//     for edges, rows of lengths
+	//     for triangles, rows correspond to edges [1,2],[2,0],[0,1]
+	template <typename DerivedV, typename DerivedF, typename DerivedL>
+	void cal_edge_length_per_face(const Eigen::MatrixBase<DerivedV>& V,
+		const Eigen::MatrixBase<DerivedF>& F,
 		Eigen::PlainObjectBase<DerivedL>& L);
 }
 
