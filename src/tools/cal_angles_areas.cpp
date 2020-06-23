@@ -69,7 +69,7 @@ void Zombie::cal_angles_and_areas(const Eigen::MatrixBase<DerivedV>& V,
 	{
 		const auto& fv = F.col(f);
 		//Mix area
-		const auto area = (V.col(fv[1]) - V.col(fv[0])).cross(V.col(fv[2]) - V.col(fv[0])).norm() / 6.0;
+		const auto area = (V.col(fv[1]) - V.col(fv[0])).cross(V.col(fv[2]) - V.col(fv[0])).norm() / 2.0;
 		for (int vi = 0; vi < DIM; ++vi)
 		{
 			const auto& p0 = V.col(fv[vi]);
@@ -133,7 +133,7 @@ void Zombie::cal_angles_and_areas_with_edges(int Vnum,
 			const auto angle = acos(std::max(-1., std::min(1., cosA)));
 			matAngles(j, i) = angle;
 			vecAngles(fv[j]) += angle;
-			vecAreas(fv[j]) += sin(angle) * b * c / 6.0;
+			vecAreas(fv[j]) += sin(angle) * b * c / 2.0;
 		}
 	}
 }

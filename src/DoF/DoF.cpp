@@ -258,39 +258,50 @@ void grad_function(const alglib::real_1d_array& x, double& func, alglib::real_1d
 	for (int i = 0; i < matF_.cols(); ++i)
 	{
 		const auto& fv = matF_.col(i);
+		const auto& n = matNormals.col(i);
 		const auto& p0 = curV.col(fv[0]);
 		const auto& p1 = curV.col(fv[1]);
 		const auto& p2 = curV.col(fv[2]);
-		const auto& n = matNormals.col(i);
 
 		Eigen::Matrix3d e;
-		e.col(0) = p1 - p0;
-		e.col(1) = p2 - p1;
-		e.col(2) = p0 - p2;
-		const double area(e.col(0).cross(e.col(1)).norm());
-		eigen_assert(area);
+		e.col(0) = p2 - p1;
+		e.col(1) = p0 - p2;
+		e.col(2) = p1 - p0;
+
+		const double area = e.col(1).cross(e.col(2)).norm();
+		eigen_assert(area && "degenerate triangle area!");
 
 		for (int j = 0; j < 3; ++j)
 		{
 			const PosVector& xx(matX.col(fv[j]));
 			double xTn = xx.dot(n);
 
-			const PosVector c1 = xTn * xTn * n.cross((e.col(j)).normalized());
-			srhs(Gradient, -c1, fv[j]);
+			const PosVector c1 = xTn * xTn * n.cross(-e.col((j + 2) % 3).normalized());
+			const PosVector c2 = xTn * xTn * n.cross(-e.col((j + 1) % 3).normalized());
+			srhs(Gradient, -(c1 + c2), fv[j]);
 			srhs(Gradient, c1, fv[(j + 1) % 3]);
-			const PosVector c2 = xTn * xTn * n.cross((e.col((j + 2) % 3)).normalized());
-			srhs(Gradient, -c2, fv[j]);
 			srhs(Gradient, c2, fv[(j + 2) % 3]);
-			Eigen::Matrix3d gradN((e.col((j + 1) % 3).cross(n) * n.transpose()) / area);
-			const PosVector c3 = 2.0 * matAngles(j, i) * xTn * gradN.transpose() * xx;
-			srhs(Gradient, c3, fv[j]);
+
+			Eigen::Matrix3d gradNdi((e.col(j).cross(n) * n.transpose()) / area);
+			Eigen::Matrix3d gradNdj((e.col((j + 1) % 3).cross(n) * n.transpose()) / area);
+			Eigen::Matrix3d gradNdk((e.col((j + 2) % 3).cross(n) * n.transpose()) / area);
+			const PosVector c3i = 2.0 * matAngles(j, i) * xTn * gradNdi.transpose() * xx;
+			const PosVector c3j = 2.0 * matAngles(j, i) * xTn * gradNdj.transpose() * xx;
+			const PosVector c3k = 2.0 * matAngles(j, i) * xTn * gradNdk.transpose() * xx;
+			srhs(Gradient, c3i, fv[j]);
+			srhs(Gradient, c3j, fv[(j + 1) % 3]);
+			srhs(Gradient, c3k, fv[(j + 2) % 3]);
 		}
 	}
+
+	assert(func == func && "There are nans in the energy");
+	assert(Gradient == Gradient && "There are nans in the energyGrad");
+
 	//std::cout << "Energy: " << func << std::endl;
 	//std::cout << "---------------------------" << std::endl;
 	////std::cout << "Gradient: " << Gradient.norm() << std::endl;
 	//std::cout << "Gradient: " << Gradient << std::endl;
-	//
+	
 	for (int i = 0; i < grad.length(); ++i)
 	{
 		grad[i] = Gradient(i);
