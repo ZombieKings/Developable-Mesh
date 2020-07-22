@@ -6,9 +6,10 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-#include <Eigen/SparseCholesky>
 
 #include <surface_mesh/Surface_mesh.h>
+
+#include "tools/cal_angles_areas.h"
 
 typedef double DataType;
 typedef Eigen::Triplet<DataType> Tri;
@@ -18,8 +19,6 @@ typedef Eigen::Matrix3Xd MatrixType;
 typedef Eigen::SparseMatrix<DataType> SparseMatrixType;
 typedef const Eigen::Matrix3Xd MatrixTypeConst;
 
-std::vector<int> interV_;
-std::vector<int> boundV_;
 Eigen::VectorXi interVidx_;
 Eigen::Matrix3Xi matF_;
 MatrixType matV_;
@@ -125,9 +124,7 @@ void cal_anglesum_Jacobian(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const 
 		//计算各角及各边长
 		PosVector length;
 		for (int i = 0; i < 3; ++i)
-		{
 			length(i) = (V.col(fv[(i + 1) % 3]) - V.col(fv[i])).norm();
-		}
 
 		//对一个面片内每个顶点计算相关系数
 		for (int i = 0; i < 3; ++i)
@@ -145,22 +142,14 @@ void cal_anglesum_Jacobian(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const 
 			PosVector v02 = (p0 - p1) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v22;
 			//系数项
 			if (interVidx(fv[(i + 1) % 3]) != -1)
-			{
 				for (int j = 0; j < 3; ++j)
-				{
 					if (v11[j])
 						triple.push_back(Tri(fv[(i + 1) % 3] * 3 + j, fv[(i + 1) % 3] * 3 + j, v11[j]));
-				}
-			}
 			//系数项
 			if (interVidx(fv[(i + 2) % 3]) != -1)
-			{
 				for (int j = 0; j < 3; ++j)
-				{
 					if (v22[j])
 						triple.push_back(Tri(fv[(i + 2) % 3] * 3 + j, fv[(i + 2) % 3] * 3 + j, v22[j]));
-				}
-			}
 
 			if (interVidx(fv[i]) != -1)
 			{
@@ -187,26 +176,21 @@ int main(int argc, char** argv)
 	}
 
 	//收集内部顶点下标
-	interVidx_.setConstant(mesh.n_vertices() + 1, -1);
+	interVidx_.setConstant(mesh.n_vertices(), -1);
 	int count = 0;
 	for (const auto& vit : mesh.vertices())
 	{
 		if (!mesh.is_boundary(vit))
 		{
-			interV_.push_back(vit.idx());
-			interVidx_(vit.idx()) = count++;
-		}
-		else
-		{
-			boundV_.push_back(vit.idx());
+			interVidx_(vit.idx()) = 1;
 		}
 	}
-	interVidx_(mesh.n_vertices()) = count;
 
 	//网格初始信息收集
 	std::vector<std::vector<int>> adj;
 	mesh2matrix(mesh, matV_, matF_, adj);
 	cal_angles_and_areas(matV_, matF_, interVidx_, matAngles_, vecAngles_, areas_);
+	//Zombie::cal_angles_and_areas(matV_, matF_, vecAngles_, areas_, matAngles_);
 	SparseMatrixType G;
 	cal_anglesum_Jacobian(matV_, matF_, interVidx_, matAngles_, G);
 	VectorType vecG;
@@ -215,7 +199,7 @@ int main(int argc, char** argv)
 	{
 		vecG(i) = G.row(i).sum();
 	}
-	const double step = 1e-4;
+	const double step = 1e-5;
 	const double sum = vecAngles_.sum();
 	VectorType numDG;
 	numDG.setConstant(matV_.cols() * 3, 0);
@@ -225,13 +209,17 @@ int main(int argc, char** argv)
 		{
 			VectorType temp;
 			matV_(j, i) += step;
+			//Zombie::cal_angles(matV_, matF_, temp);
+			//for (int k = 0; k < matV_.cols(); ++k)
+			//	//if(interVidx_[k] != -1)
+			//		numDG(i * 3 + j) = (temp(k) - vecAngles_(k)) / step;
 			cal_angles(matV_, matF_, interVidx_, temp);
 			numDG(i * 3 + j) = (temp.sum() - sum) / step;
 			matV_(j, i) -= step;
 		}
 	}
 
-	//for(int i =0;i<vecG.size();++i)
+	//for(int i = 0; i < vecG.size(); ++i)
 	//	std::cout << vecG(i) << " " << numDG(i) << std::endl;
 
 	for (int i = 0; i < vecG.size(); ++i)

@@ -3,20 +3,24 @@
 //------------------------------------------------------------------
 #include "newtonMethod.h"
 
-#define w1 1.0f
-#define w2 0.1f
-#define TAU 0.5f
+#define w1_ 10.0
+#define w2_ 1.0
+#define TAU 0.25
 
-bool flag = false;
+bool flag_ = false;
 int it_conunter = 0;
 
-std::vector<int> interV;
-std::vector<int> boundV;
-Eigen::VectorXi interVidx;
+int innerNum_ = 0;
+Eigen::VectorXi VType_;
+Eigen::VectorXi vecD_;
 
-Eigen::Matrix3Xf matV;
-Eigen::Matrix3Xi matF;
-Eigen::Matrix3Xf oriV;
+MatrixType matV_;
+Eigen::Matrix3Xi matF_;
+
+MatrixType oriV_;
+VectorType vecOriV_;
+
+SparseMatrixType L_;
 
 int main(int argc, char** argv)
 {
@@ -25,100 +29,74 @@ int main(int argc, char** argv)
 	{
 		std::cout << "Laod failed!" << std::endl;
 	}
-
-	interVidx.resize(mesh.n_vertices());
-	memset(interVidx.data(), -1, sizeof(int) * interVidx.size());
-	int count = 0;
+	//收集内部顶点下标
+	VType_.setConstant(mesh.n_vertices(), 0);
 	for (const auto& vit : mesh.vertices())
 	{
-		if (!mesh.is_boundary(vit))
-		{
-			interV.push_back(vit.idx());
-			interVidx(vit.idx()) = count++;
-		}
+		if (mesh.is_boundary(vit))
+			VType_(vit.idx()) = -1;
 		else
-		{
-			boundV.push_back(vit.idx());
-		}
+			VType_(vit.idx()) = innerNum_++;
 	}
 	//-----------保存构造的网格-----------
-	mesh2matrix(mesh, matV, matF);
-	oriV = matV;
-	Eigen::Matrix3Xf angles;
-	Eigen::VectorXf vangles;
-	cal_angles(oriV, matF, boundV, angles, vangles);
-
-	//Eigen::Matrix3Xf matV;
-	//Eigen::Matrix3Xi matF;
-	//mesh2matrix(mesh, matV, matF);
-	//Eigen::Matrix3Xf oriV(matV);
-	//
-	//Eigen::Matrix3Xf angles;
-	//Eigen::VectorXf vangles;
-	//Eigen::VectorXf degrees;
-	//Eigen::Matrix3Xf Lpos;
-	//calLaplace_Angles_Neigh(matV, matF, angles, vangles, Lpos, degrees);
-	//
-	////std::cout << degrees << std::endl;
-	//
-	//Eigen::SparseMatrix<float> A;
-	//BuildCoeffMatrix(matV, matF, angles, degrees, interVidx, A);
-	//std::cout << A << std::endl;
-	//
-	//Eigen::VectorXf b;
-	//BuildrhsB(matV, matF, Lpos, degrees, interVidx, oriV, vangles, b);
-	//std::cout << b << std::endl;
-	//
-	//Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>> solver;
-	//solver.compute((A.transpose() * A).eval());
-	//Eigen::SparseQR<Eigen::SparseMatrix<float>, Eigen::COLAMDOrdering<int>> solver;
-	//solver.compute(A);
-	//if (solver.info() != Eigen::Success)
-	//{
-	//	std::cout << "solve fail" << std::endl;
-	//}
-	//Eigen::VectorXf temp = solver.solve(b);
-	//std::cout << temp << std::endl;
-	//
-	//Eigen::Matrix3Xf resV(matV);
-	//for (size_t i = 0; i < interV.size(); ++i)
-	//{
-	//	for (int j = 0; j < 3; ++j)
-	//	{
-	//		resV(j, interV[i]) += TAU * temp(i * 3 + j);
-	//	}
-	//}
-	//
-	//Eigen::Matrix3Xf remA;
-	//Eigen::VectorXf reA;
-	//cal_angles(resV, matF, boundV, remA, reA);
+	mesh2matrix(mesh, matV_, matF_);
+	oriV_ = matV_;
+	vecOriV_ = Eigen::Map<VectorType>(oriV_.data(), 3 * oriV_.cols(), 1);
+	VectorType oriA;
+	Zombie::cal_angles(matV_, matF_, oriA);
+	Zombie::cal_uni_laplace(matV_.cols(), matF_, 3, L_);
+	vecD_ = L_.diagonal().cast<int>();
+	for (int k = 0; k < L_.outerSize(); ++k)
+		for (SparseMatrixType::InnerIterator it(L_, k); it; ++it)
+			if (VType_(it.row() / 3) != -1)
+				it.valueRef() /= vecD_(it.row());
+			else
+				it.valueRef() = 0;
 
 	//---------------可视化---------------
 	//创建窗口
 	auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
-	renderWindow->SetSize(1400, 800);
+	renderWindow->SetSize(1600, 800);
+	auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
+	Zombie::visualize_mesh(renderer1, matV_, matF_, oriA, VType_);
+	renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
 
-	////---------------原始网格及法向可视化---------------
-	auto renderer = vtkSmartPointer<vtkRenderer>::New();
-	visualize_mesh(renderer, matV, matF, vangles);
-	renderer->SetViewport(0.0, 0.0, 1.0, 1.0);
+	//添加文本
+	auto textActor1 = vtkSmartPointer<vtkTextActor>::New();
+	textActor1->SetInput("Result Mesh");
+	textActor1->GetTextProperty()->SetFontSize(33);
+	textActor1->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	renderer1->AddActor2D(textActor1);
+
 	//视角设置
-	renderer->GetActiveCamera()->SetPosition(-1, 0, -1);
-	//renderer->GetActiveCamera()->SetViewUp(0, 0, 1);
-	renderer->ResetCamera();
-	renderWindow->AddRenderer(renderer);
+	renderer1->ResetCamera();
+	renderWindow->AddRenderer(renderer1);
+
+	auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
+	Zombie::visualize_mesh(renderer2, oriV_, matF_, oriA, VType_);
+	renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
+
+	//添加文本
+	auto textActor2 = vtkSmartPointer<vtkTextActor>::New();
+	textActor2->SetInput("Original Mesh");
+	textActor2->GetTextProperty()->SetFontSize(33);
+	textActor2->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	renderer2->AddActor2D(textActor2);
+
+	//视角设置
+	renderer2->ResetCamera();
+	renderWindow->AddRenderer(renderer2);
 
 	auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
 	interactor->SetRenderWindow(renderWindow);
 	auto style = vtkInteractorStyleTrackballCamera::New();
 	interactor->SetInteractorStyle(style);
-
 	interactor->Initialize();
-	interactor->CreateRepeatingTimer(0);
+	interactor->CreateRepeatingTimer(1000);
 
 	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
 	timeCallback->SetCallback(CallbackFunction);
-	timeCallback->SetClientData(renderer->GetActors()->GetLastActor()->GetMapper()->GetInput());
+	timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
 
 	interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
 
@@ -131,364 +109,326 @@ int main(int argc, char** argv)
 
 void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData))
 {
-	if (!flag)
+	if (!flag_)
 	{
-		Eigen::Matrix3Xf angles;
-		Eigen::VectorXf vangles;
-		Eigen::VectorXf degrees;
-		Eigen::Matrix3Xf Lpos;
-		calLaplace_Angles_Neigh(matV, matF, angles, vangles, Lpos, degrees);
+		Update(matV_, matF_, VType_, innerNum_, L_);
 
-		Eigen::SparseMatrix<float> A;
-		BuildCoeffMatrix(matV, matF, angles, degrees, interVidx, A);
+		assert(!matV_.hasNaN() && "have invalid vertices data");
+			
 
-		Eigen::VectorXf b;
-		BuildrhsB(matV, matF, Lpos, degrees, interVidx, oriV, vangles, b);
-
-		Eigen::SimplicialLDLT< Eigen::SparseMatrix<float>> solver;
-		solver.compute(A.transpose() * A);
-
-		if (solver.info() != Eigen::Success) 
-			std::cout << "solve fail" << std::endl;
-
-		Eigen::VectorXf temp = solver.solve(A.transpose() * b);
-		for (size_t i = 0; i < interV.size(); ++i)
-			for (int j = 0; j < 3; ++j)
-				matV(j, interV[i]) += TAU * temp(i * 3 + j);
-
-		temp(temp.size() - 1) = 0;
-		if (temp.norm() <= 1e-4)
-			flag = true;
-
-		Eigen::Matrix3Xf remA;
-		Eigen::VectorXf reA;
-		cal_angles(matV, matF, boundV, remA, reA);
-
-		double error = 0.0f;
-		for (size_t i = 0; i < interV.size(); ++i)
-			error += abs(reA(interV[i]) - 2.0 * M_PI);
+		VectorType vecA;
+		Zombie::cal_angles(matV_, matF_, vecA);
+		double error = 0.0;
 
 		//update angle
 		auto scalar = vtkSmartPointer<vtkDoubleArray>::New();
 		scalar->SetNumberOfComponents(1);
-		scalar->SetNumberOfTuples(matV.cols());
-		for (auto i = 0; i < reA.size(); ++i)
-			scalar->InsertTuple1(i, abs(2.0 * M_PI - reA(i)));
-
+		scalar->SetNumberOfTuples(matV_.cols());
+		for (auto i = 0; i < VType_.rows(); ++i)
+			if (VType_(i) != -1)
+			{
+				double tmp = abs(vecA(i) - 2.0 * M_PI);
+				error += tmp;
+				scalar->InsertTuple1(i, tmp);
+			}
+			else
+				scalar->InsertTuple1(i, 0);
 		auto polydata = static_cast<vtkPolyData*>(clientData);
 		auto* iren = static_cast<vtkRenderWindowInteractor*>(caller);
 
 		auto points = vtkSmartPointer<vtkPoints>::New();
-		for (int i = 0; i < matV.cols(); ++i)
-			points->InsertNextPoint(matV.col(i).data());
+		for (int i = 0; i < matV_.cols(); ++i)
+			points->InsertNextPoint(matV_.col(i).data());
 		polydata->SetPoints(points);
 		polydata->GetPointData()->SetScalars(scalar);
 		polydata->Modified();;
 
 		iren->Render();
-		if (flag)
+		if (flag_)
 			std::cout << "优化结束,共进行";
 		else
 			std::cout << "第";
-		std::cout << it_conunter++ << "次迭代，误差为： " << error << std::endl;
+		std::cout << it_conunter++ << "次迭代，误差为： " << error / innerNum_ << std::endl;
 	}
 }
 
-void cal_angles(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const std::vector<int>& boundIdx, Eigen::Matrix3Xf& matAngles, Eigen::VectorXf& vecAngles)
+//void calLaplace_Angles_Neigh(const MatrixType& V, const Eigen::Matrix3Xi& F, MatrixType& A, Eigen::VectorXf& vecA, MatrixType& Lpos, Eigen::VectorXi& degrees)
+//{
+//	A.resize(3, F.cols());
+//	vecA.resize(V.cols());
+//	vecA.setZero();
+//	std::vector<Eigen::Triplet<float>> tripleL;
+//	tripleL.reserve(F.cols() * 9);
+//	for (int j = 0; j < F.cols(); ++j)
+//	{
+//		const Eigen::Vector3i& fv = F.col(j);
+//		for (size_t vi = 0; vi < 3; ++vi)
+//		{
+//			const Eigen::VectorXf& p0 = V.col(fv[vi]);
+//			const Eigen::VectorXf& p1 = V.col(fv[(vi + 1) % 3]);
+//			const Eigen::VectorXf& p2 = V.col(fv[(vi + 2) % 3]);
+//			const float angle = std::acos(std::max(-1.0f, std::min(1.0f, (p1 - p0).normalized().dot((p2 - p0).normalized()))));
+//			A(vi, j) = angle;
+//			vecA(fv[vi]) += angle;
+//
+//			tripleL.push_back(Eigen::Triplet<float>(fv[vi], fv[vi], 1));
+//			tripleL.push_back(Eigen::Triplet<float>(fv[vi], fv[(vi + 1) % 3], -0.5f));
+//			tripleL.push_back(Eigen::Triplet<float>(fv[vi], fv[(vi + 2) % 3], -0.5f));
+//		}
+//	}
+//	Eigen::SparseMatrix<float> L;
+//	L.resize(V.cols(), V.cols());
+//	L.setFromTriplets(tripleL.begin(), tripleL.end());
+//
+//	degrees = L.diagonal();
+//	for (int k = 0; k < L.outerSize(); ++k)
+//		for (Eigen::SparseMatrix<float>::InnerIterator it(L, k); it; ++it)
+//		{
+//			it.valueRef() /= degrees(it.row());
+//		}
+//	Lpos = (L * V.transpose()).transpose();
+//}
+//
+//void calGradient(const MatrixType& V, const Eigen::Matrix3Xi& F, const MatrixType& matAngles, const Eigen::VectorXi& interIdx, Eigen::VectorXf& Gradient)
+//{
+//	Gradient.resize(V.cols() * 3 + 1);
+//	Gradient.setZero();
+//	//高斯梯度
+//	for (int fit = 0; fit < F.cols(); ++fit)
+//	{
+//		//记录当前面信息
+//		const Eigen::Vector3i& fv = F.col(fit);
+//		const Eigen::Vector3f& ca = matAngles.col(fit);
+//		Eigen::Matrix3f p;
+//		for (int i = 0; i < 3; ++i)
+//			p.col(i) = V.col(fv[i]);
+//
+//		//计算各角及各边长
+//		Eigen::Vector3f length;
+//		for (int i = 0; i < 3; ++i)
+//		{
+//			length(i) = (p.col((i + 1) % 3) - p.col(i)).norm();
+//		}
+//
+//		//对每个顶点计算相关系数
+//		for (int i = 0; i < 3; ++i)
+//		{
+//			//Mix area
+//			const Eigen::Vector3f& p0 = p.col(i);
+//			const Eigen::Vector3f& p1 = p.col((i + 1) % 3);
+//			const Eigen::Vector3f& p2 = p.col((i + 2) % 3);
+//
+//			//判断顶点fv是否为内部顶点，边界顶点不参与计算
+//			if (interIdx(fv[(i + 1) % 3]) != -1)
+//			{
+//				//对vp求偏微分的系数
+//				Eigen::Vector3f v11 = (p0 - p1) / (tan(ca[i]) * length(i) * length(i));
+//				//对vq求偏微分的系数
+//				Eigen::Vector3f v10 = (p0 - p2) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v11;
+//				//系数项
+//				for (int j = 0; j < 3; ++j)
+//				{
+//					if (v11[j]) Gradient(fv[(i + 1) % 3] * 3 + j) += v11[j];
+//					if (v10[j]) Gradient(fv[i] * 3 + j) += v10[j];
+//				}
+//			}
+//
+//			if (interIdx(fv[(i + 2) % 3]) != -1)
+//			{
+//				//对vp求偏微分的系数
+//				Eigen::Vector3f v22 = (p0 - p2) / (tan(ca[i]) * length((i + 2) % 3) * length((i + 2) % 3));
+//				//对vq求偏微分的系数
+//				Eigen::Vector3f v20 = (p0 - p1) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v22;
+//				//系数项
+//				for (int j = 0; j < 3; ++j)
+//				{
+//					if (v22[j]) Gradient(fv[(i + 2) % 3] * 3 + j) += v22[j];
+//					if (v20[j]) Gradient(fv[i] * 3 + j) += v20[j];
+//				}
+//			}
+//		}
+//	}
+//}
+
+void cal_Angle_Sum_Gradient(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& Vtype, VectorType& G)
 {
-	matAngles.resize(3, F.cols());
-	matAngles.setZero();
-	vecAngles.resize(V.cols());
-	vecAngles.setZero();
-	for (int f = 0; f < F.cols(); ++f)
-	{
-		const Eigen::Vector3i& fv = F.col(f);
-		for (size_t vi = 0; vi < 3; ++vi)
-		{
-			const Eigen::Vector3f& p0 = V.col(fv[vi]);
-			const Eigen::Vector3f& p1 = V.col(fv[(vi + 1) % 3]);
-			const Eigen::Vector3f& p2 = V.col(fv[(vi + 2) % 3]);
-			const double angle = std::acos(std::max(-1.0f, std::min(1.0f, (p1 - p0).normalized().dot((p2 - p0).normalized()))));
-			vecAngles(F(vi, f)) += angle;
-			matAngles(vi, f) = angle;
-		}
-	}
-	for (size_t i = 0; i < boundIdx.size(); ++i)
-		vecAngles(boundIdx[i]) = 2.0f * M_PI;
-}
-
-void calLaplace_Angles_Neigh(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::Matrix3Xf& A, Eigen::VectorXf& vecA, Eigen::Matrix3Xf& Lpos, Eigen::VectorXf& degrees)
-{
-	A.resize(3, F.cols());
-	vecA.resize(V.cols());
-	vecA.setZero();
-	std::vector<Eigen::Triplet<float>> tripleL;
-	tripleL.reserve(F.cols() * 9);
-	for (int j = 0; j < F.cols(); ++j)
-	{
-		const Eigen::Vector3i& fv = F.col(j);
-		for (size_t vi = 0; vi < 3; ++vi)
-		{
-			const Eigen::VectorXf& p0 = V.col(fv[vi]);
-			const Eigen::VectorXf& p1 = V.col(fv[(vi + 1) % 3]);
-			const Eigen::VectorXf& p2 = V.col(fv[(vi + 2) % 3]);
-			const float angle = std::acos(std::max(-1.0f, std::min(1.0f, (p1 - p0).normalized().dot((p2 - p0).normalized()))));
-			A(vi, j) = angle;
-			vecA(fv[vi]) += angle;
-
-			tripleL.push_back(Eigen::Triplet<float>(fv[vi], fv[vi], 1));
-			tripleL.push_back(Eigen::Triplet<float>(fv[vi], fv[(vi + 1) % 3], -0.5f));
-			tripleL.push_back(Eigen::Triplet<float>(fv[vi], fv[(vi + 2) % 3], -0.5f));
-		}
-	}
-	Eigen::SparseMatrix<float> L;
-	L.resize(V.cols(), V.cols());
-	L.setFromTriplets(tripleL.begin(), tripleL.end());
-
-	degrees = L.diagonal();
-	for (int k = 0; k < L.outerSize(); ++k)
-		for (Eigen::SparseMatrix<float>::InnerIterator it(L, k); it; ++it)
-		{
-			it.valueRef() /= degrees(it.row());
-		}
-	Lpos = (L * V.transpose()).transpose();
-}
-
-void calGradient(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& matAngles, const Eigen::VectorXi& interIdx, Eigen::VectorXf& Gradient)
-{
-	Gradient.resize(V.cols() * 3 + 1);
-	Gradient.setZero();
-	//高斯梯度
+	MatrixType matA;
+	VectorType vecA;
+	Zombie::cal_angles(V, F, vecA, matA);
+	G.setConstant(V.cols() * 3, 0);
+	//高斯曲率的梯度
 	for (int fit = 0; fit < F.cols(); ++fit)
 	{
 		//记录当前面信息
-		const Eigen::Vector3i& fv = F.col(fit);
-		const Eigen::Vector3f& ca = matAngles.col(fit);
-		Eigen::Matrix3f p;
-		for (int i = 0; i < 3; ++i)
-			p.col(i) = V.col(fv[i]);
+		const auto& fv = F.col(fit);
+		const auto& ca = matA.col(fit);
 
 		//计算各角及各边长
-		Eigen::Vector3f length;
+		PosVector length;
+		for (int i = 0; i < 3; ++i)
+			length(i) = (V.col(fv[(i + 1) % 3]) - V.col(fv[i])).norm();
+
+		//对一个面片内每个顶点计算相关系数
 		for (int i = 0; i < 3; ++i)
 		{
-			length(i) = (p.col((i + 1) % 3) - p.col(i)).norm();
-		}
-
-		//对每个顶点计算相关系数
-		for (int i = 0; i < 3; ++i)
-		{
-			//Mix area
-			const Eigen::Vector3f& p0 = p.col(i);
-			const Eigen::Vector3f& p1 = p.col((i + 1) % 3);
-			const Eigen::Vector3f& p2 = p.col((i + 2) % 3);
-
+			const auto& p0 = V.col(fv[i]);
+			const auto& p1 = V.col(fv[(i + 1) % 3]);
+			const auto& p2 = V.col(fv[(i + 2) % 3]);
 			//判断顶点fv是否为内部顶点，边界顶点不参与计算
-			if (interIdx(fv[(i + 1) % 3]) != -1)
-			{
-				//对vp求偏微分的系数
-				Eigen::Vector3f v11 = (p0 - p1) / (tan(ca[i]) * length(i) * length(i));
-				//对vq求偏微分的系数
-				Eigen::Vector3f v10 = (p0 - p2) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v11;
-				//系数项
-				for (int j = 0; j < 3; ++j)
-				{
-					if (v11[j]) Gradient(fv[(i + 1) % 3] * 3 + j) += v11[j];
-					if (v10[j]) Gradient(fv[i] * 3 + j) += v10[j];
-				}
-			}
+			PosVector v11 = (p0 - p1) / (tan(ca[i]) * length(i) * length(i));
+			PosVector v22 = (p0 - p2) / (tan(ca[i]) * length((i + 2) % 3) * length((i + 2) % 3));
 
-			if (interIdx(fv[(i + 2) % 3]) != -1)
-			{
-				//对vp求偏微分的系数
-				Eigen::Vector3f v22 = (p0 - p2) / (tan(ca[i]) * length((i + 2) % 3) * length((i + 2) % 3));
-				//对vq求偏微分的系数
-				Eigen::Vector3f v20 = (p0 - p1) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v22;
-				//系数项
+			PosVector v01 = (p0 - p2) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v11;
+			PosVector v02 = (p0 - p1) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v22;
+			if (Vtype(fv[i]) != -1)
 				for (int j = 0; j < 3; ++j)
 				{
-					if (v22[j]) Gradient(fv[(i + 2) % 3] * 3 + j) += v22[j];
-					if (v20[j]) Gradient(fv[i] * 3 + j) += v20[j];
+					if (v01[j]) G(fv[(i + 1) % 3] * 3 + j) += v01[j];
+					if (v02[j]) G(fv[(i + 2) % 3] * 3 + j) += v02[j];
 				}
-			}
+
+			if (Vtype(fv[(i + 1) % 3]) != -1)
+				for (int j = 0; j < 3; ++j)
+					if (v11[j]) G(fv[(i + 1) % 3] * 3 + j) += v11[j];
+
+			if (Vtype(fv[(i + 2) % 3]) != -1)
+				for (int j = 0; j < 3; ++j)
+					if (v22[j]) G(fv[(i + 2) % 3] * 3 + j) += v22[j];
 		}
 	}
 }
 
-void BuildCoeffMatrix(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& angles, const Eigen::VectorXf& degrees, const Eigen::VectorXi& interIdx, Eigen::SparseMatrix<float>& A)
+void Update(MatrixType& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& Vtype, int innerNum, const SparseMatrixType& L)
 {
-	int interNum = interIdx.maxCoeff() + 1;
-	std::vector<Eigen::Triplet<float>> triA;
-	for (int fi = 0; fi < F.cols(); ++fi)
+	const int Vnum = V.cols();
+	VectorType vecV = Eigen::Map<VectorType>(V.data(), 3 * Vnum, 1);
+	MatrixType matA;
+	VectorType vecA;
+	Zombie::cal_angles(V, F, vecA, matA);
+
+	VectorType B(- w1_ * L * vecV - w2_ * (vecV - vecOriV_));
+	B.conservativeResize(Vnum * 3 + innerNum);
+
+	SparseMatrixType H(L);
+	H.conservativeResize(Vnum * 3 + innerNum, Vnum * 3 + innerNum);
+
+	for (int i = 0; i < Vnum; ++i)
+		for (int j = 0; j < 3; ++j)
+			if (Vtype(i) != -1)
+				H.coeffRef(i * 3 + j, i * 3 + j) += w2_;
+			else
+				H.coeffRef(i * 3 + j, i * 3 + j) += w2_ * 1000;
+
+	// lambda
+	//高斯曲率的梯度
+	for (int fit = 0; fit < F.cols(); ++fit)
 	{
-		const Eigen::Vector3i& fv = F.col(fi);
-		for (int vi = 0; vi < 3; ++vi)
+		//记录当前面信息
+		const auto& fv = F.col(fit);
+		const auto& ca = matA.col(fit);
+
+		//计算各角及各边长
+		PosVector length;
+		for (int i = 0; i < 3; ++i)
+			length(i) = (V.col(fv[(i + 1) % 3]) - V.col(fv[i])).norm();
+
+		//对一个面片内每个顶点计算相关系数
+		for (int i = 0; i < 3; ++i)
 		{
-			if (interIdx(fv[vi]) != -1)
-			{
-				dcoeff(triA, interIdx(fv[vi]) * 3, interIdx(fv[vi]) * 3, w1 + w2);
-				if (interIdx(fv[(vi + 1) % 3]) != -1)
-					dcoeff(triA, interIdx(fv[vi]) * 3, interIdx(fv[(vi + 1) % 3]) * 3, -w1 / degrees(fv[vi]));
-				if (interIdx(fv[(vi + 2) % 3]) != -1)
-					dcoeff(triA, interIdx(fv[vi]) * 3, interIdx(fv[(vi + 2) % 3]) * 3, -w1 / degrees(fv[vi]));
-			}
+			const auto& p0 = V.col(fv[i]);
+			const auto& p1 = V.col(fv[(i + 1) % 3]);
+			const auto& p2 = V.col(fv[(i + 2) % 3]);
+			//判断顶点fv是否为内部顶点，边界顶点不参与计算
+			PosVector v11 = (p0 - p1) / (tan(ca[i]) * length(i) * length(i));
+			PosVector v22 = (p0 - p2) / (tan(ca[i]) * length((i + 2) % 3) * length((i + 2) % 3));
+
+			PosVector v01 = (p0 - p2) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v11;
+			PosVector v02 = (p0 - p1) / (sin(ca[i]) * length(i) * length((i + 2) % 3)) - v22;
+			if (Vtype(fv[i]) != -1)
+				for (int j = 0; j < 3; ++j)
+				{
+					H.coeffRef(Vnum * 3 + Vtype(fv[i]), fv[(i + 1) % 3] * 3 + j) += v01[j];
+					H.coeffRef(Vnum * 3 + Vtype(fv[i]), fv[(i + 2) % 3] * 3 + j) += v02[j];
+					H.coeffRef(fv[(i + 1) % 3] * 3 + j, Vnum * 3 + Vtype(fv[i])) += v01[j];
+					H.coeffRef(fv[(i + 2) % 3] * 3 + j, Vnum * 3 + Vtype(fv[i])) += v02[j];
+				}
+
+			if (Vtype(fv[(i + 1) % 3]) != -1)
+				for (int j = 0; j < 3; ++j)
+				{
+					H.coeffRef(Vnum * 3 + Vtype(fv[(i + 1) % 3]), fv[(i + 1) % 3] * 3 + j) += v11[j];
+					H.coeffRef(fv[(i + 1) % 3] * 3 + j, Vnum * 3 + Vtype(fv[(i + 1) % 3])) += v11[j];
+				}
+
+
+
+			if (Vtype(fv[(i + 2) % 3]) != -1)
+				for (int j = 0; j < 3; ++j)
+				{
+					H.coeffRef(Vnum * 3 + Vtype(fv[(i + 2) % 3]), fv[(i + 2) % 3] * 3 + j) += v22[j];
+					H.coeffRef(fv[(i + 2) % 3] * 3 + j, Vnum * 3 + Vtype(fv[(i + 2) % 3])) += v22[j];
+				}
 		}
 	}
 
-	Eigen::VectorXf Gradient;
-	calGradient(V, F, angles, interIdx, Gradient);
-	for (int i = 0; i < V.cols(); ++i)
+
+	for (int i = 0; i < Vtype.size(); ++i)
 	{
-		if (interIdx(i) != -1)
+		if (Vtype[i] != -1)
 		{
 			for (int j = 0; j < 3; ++j)
 			{
-				triA.push_back(Eigen::Triplet<float>(interIdx(i) * 3 + j, interNum * 3, Gradient(i * 3 + j)));
-				triA.push_back(Eigen::Triplet<float>(interNum * 3, interIdx(i) * 3 + j, Gradient(i * 3 + j)));
+				//H.coeffRef(Vnum * 3 + cntIn, i * 3 + j) = G(i * 3 + j);
+				//H.coeffRef(i * 3 + j, Vnum * 3 + cntIn) = G(i * 3 + j);
+				B(Vnum * 3 + Vtype[i]) = 2.0 * M_PI - vecA(i);
 			}
 		}
 	}
-	A.resize(interNum * 3 + 1, interNum * 3 + 1);
-	A.setFromTriplets(triA.begin(), triA.end());
-}
+	H.makeCompressed();
 
-void BuildrhsB(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, const Eigen::Matrix3Xf& Lpos, const Eigen::VectorXf& degrees, const Eigen::VectorXi& interIdx, const Eigen::Matrix3Xf& oriV, Eigen::VectorXf& vecA, Eigen::VectorXf& b)
-{
-	int interNum = interIdx.maxCoeff() + 1;
-	b.resize(3 * interNum + 1);
-	b.setZero();
-	for (int i = 0; i < V.cols(); ++i)
-	{
-		if (interIdx(i) != -1)
+	//std::cout << H << std::endl;
+
+
+	Eigen::SimplicialLDLT<SparseMatrixType> solver;
+	//Eigen::SparseQR<SparseMatrixType, Eigen::COLAMDOrdering<int>> solver;
+	solver.compute(H);
+	if (solver.info() != Eigen::Success)
+		std::cout << "solve fail" << std::endl;
+	VectorType temp = solver.solve(B);
+
+	// X = X + /tau * /delta
+	for (int i = 0; i < Vnum; ++i)
+		for (int j = 0; j < 3; ++j)
 		{
-			Eigen::Vector3f tempv = -w1 * (Lpos.col(i) / degrees(i)) - w2 * (V.col(i) - oriV.col(i));
-			srhs(b, tempv, interIdx(i) * 3);
-			b(3 * interNum) += (2 * M_PI - vecA(i));
+			V(j, i) += TAU * temp(i * 3 + j);
+			//std::cout << TAU * temp(i * 3 + j) << std::endl;
 		}
-	}
+
+	if (temp.topRows(Vnum * 3).norm() <= 1e-5)
+		flag_ = true;
 }
 
-void mesh2matrix(const surface_mesh::Surface_mesh& mesh, Eigen::Matrix3Xf& vertices_mat, Eigen::Matrix3Xi& faces_mat)
+void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix3Xi& F)
 {
-	faces_mat.resize(3, mesh.n_faces());
-	vertices_mat.resize(3, mesh.n_vertices());
+	F.resize(3, mesh.n_faces());
+	V.resize(3, mesh.n_vertices());
 
 	Eigen::VectorXi flag;
-	flag.resize(mesh.n_vertices());
-	flag.setZero();
+	flag.setConstant(mesh.n_vertices(), 0);
 	for (auto fit : mesh.faces())
 	{
 		int i = 0;
 		for (auto fvit : mesh.vertices(fit))
 		{
 			//save faces informations
-			faces_mat(i++, fit.idx()) = fvit.idx();
+			F(i++, fit.idx()) = fvit.idx();
 			//save vertices informations
 			if (!flag(fvit.idx()))
 			{
-				vertices_mat.col(fvit.idx()) = Eigen::Map<const Eigen::Vector3f>(mesh.position(surface_mesh::Surface_mesh::Vertex(fvit.idx())).data());
+				V.col(fvit.idx()) = Eigen::Map<const Eigen::Vector3f>(mesh.position(surface_mesh::Surface_mesh::Vertex(fvit.idx())).data()).cast<DataType>();
 				flag(fvit.idx()) = 1;
 			}
 		}
 	}
 }
 
-void matrix2vtk(const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, vtkPolyData* P)
-{
-	auto points = vtkSmartPointer<vtkPoints>::New();
-	for (int i = 0; i < V.cols(); ++i)
-		points->InsertNextPoint(V.col(i).data());
-
-	auto faces = vtkSmartPointer <vtkCellArray>::New();
-	for (int i = 0; i < F.cols(); ++i)
-	{
-		auto triangle = vtkSmartPointer<vtkTriangle>::New();
-		for (int j = 0; j < 3; ++j)
-			triangle->GetPointIds()->SetId(j, F(j, i));
-		faces->InsertNextCell(triangle);
-	}
-	P->SetPoints(points);
-	P->SetPolys(faces);
-}
-
-void MakeLUT(vtkFloatArray* Scalar, vtkLookupTable* LUT)
-{
-	auto ctf = vtkSmartPointer<vtkColorTransferFunction>::New();
-	ctf->SetColorSpaceToHSV();
-	ctf->AddRGBPoint(0.0, 0.1, 0.3, 1);
-	ctf->AddRGBPoint(0.25, 0.55, 0.65, 1);
-	ctf->AddRGBPoint(0.5, 1, 1, 1);
-	ctf->AddRGBPoint(0.75, 1, 0.65, 0.55);
-	ctf->AddRGBPoint(1.0, 1, 0.3, 0.1);
-
-	LUT->SetNumberOfColors(256);
-	for (auto i = 0; i < LUT->GetNumberOfColors(); ++i)
-	{
-		Eigen::Vector4d color;
-		ctf->GetColor(double(i) / LUT->GetNumberOfColors(), color.data());
-		color(3) = 1.0;
-		LUT->SetTableValue(i, color.data());
-	}
-	LUT->Build();
-}
-
-void visualize_vertices(vtkRenderer* Renderer, const Eigen::Matrix3Xf& V)
-{
-	auto points = vtkSmartPointer<vtkPoints>::New();
-	for (int i = 0; i < V.cols(); ++i)
-		points->InsertNextPoint(V.col(i).data());
-
-	auto polydata = vtkSmartPointer<vtkPolyData>::New();
-	polydata->SetPoints(points);
-	auto pointsFilter = vtkSmartPointer<vtkVertexGlyphFilter>::New();
-	pointsFilter->SetInputData(polydata);
-	pointsFilter->Update();
-
-	auto pointsMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-	pointsMapper->SetInputConnection(pointsFilter->GetOutputPort());
-	auto pointsActor = vtkSmartPointer<vtkActor>::New();
-	pointsActor->SetMapper(pointsMapper);
-	pointsActor->GetProperty()->SetDiffuseColor(1.0, 0.0, 0.0);
-	pointsActor->GetProperty()->SetPointSize(4.0);
-	Renderer->AddActor(pointsActor);
-
-	//视角设置
-	Renderer->GetActiveCamera()->SetPosition(-3, 0, 0);
-	Renderer->GetActiveCamera()->SetFocalPoint(0, 0, 0);
-	Renderer->GetActiveCamera()->SetViewUp(0, 0, 1);
-	Renderer->ResetCamera();
-}
-
-void visualize_mesh(vtkRenderer* Renderer, const Eigen::Matrix3Xf& V, const Eigen::Matrix3Xi& F, Eigen::VectorXf& angles)
-{
-	//生成网格
-	auto P = vtkSmartPointer<vtkPolyData>::New();
-	matrix2vtk(V, F, P);
-
-	auto scalar = vtkSmartPointer<vtkFloatArray>::New();
-	scalar->SetNumberOfComponents(1);
-	scalar->SetNumberOfTuples(V.cols());
-	for (auto i = 0; i < angles.size(); ++i)
-		scalar->InsertTuple1(i, abs(2.0f * M_PI - angles(i)));
-	P->GetPointData()->SetScalars(scalar);
-
-	auto lut = vtkSmartPointer<vtkLookupTable>::New();
-	MakeLUT(scalar, lut);
-
-	auto scalarBar = vtkSmartPointer<vtkScalarBarActor>::New();
-	scalarBar->SetLookupTable(lut);
-	scalarBar->SetTitle("Curvature Error");
-	scalarBar->SetNumberOfLabels(4);
-
-	//网格及法向渲染器
-	auto polyMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-	polyMapper->SetInputData(P);
-	polyMapper->SetLookupTable(lut);
-	polyMapper->SetScalarRange(scalar->GetValueRange()[0], scalar->GetValueRange()[1]);
-
-	auto polyActor = vtkSmartPointer<vtkActor>::New();
-	polyActor->SetMapper(polyMapper);
-	polyActor->GetProperty()->SetDiffuseColor(1, 1, 1);
-	Renderer->AddActor(polyActor);
-	Renderer->AddActor2D(scalarBar);
-}

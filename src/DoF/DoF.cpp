@@ -34,11 +34,11 @@ int main(int argc, char** argv)
 	std::cout << "³õÊ¼Æ½¾ùÎó²î£º " << cal_error(vecA_, VType_, 0) << std::endl;
 
 	//--------------²âÊÔ---------------
-	alglib::real_1d_array xx;
-	xx.attach_to_ptr(matV_.cols() * 3, matV_.data());
-	double f(0.0);
-	alglib::real_1d_array g;
-	grad_function(xx, f, g, nullptr);
+	//alglib::real_1d_array xx;
+	//xx.attach_to_ptr(matV_.cols() * 3, matV_.data());
+	//double f(0.0);
+	//alglib::real_1d_array g;
+	//grad_function(xx, f, g, nullptr);
 
 	alglib::real_1d_array x;
 	//x.setcontent(matV_.cols() * 3, matV_.data());
@@ -301,7 +301,7 @@ void grad_function(const alglib::real_1d_array& x, double& func, alglib::real_1d
 	//std::cout << "---------------------------" << std::endl;
 	////std::cout << "Gradient: " << Gradient.norm() << std::endl;
 	//std::cout << "Gradient: " << Gradient << std::endl;
-	
+
 	for (int i = 0; i < grad.length(); ++i)
 	{
 		grad[i] = Gradient(i);

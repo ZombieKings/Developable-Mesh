@@ -80,8 +80,8 @@ void Zombie::visualize_mesh(vtkRenderer* Renderer,
 	auto polyMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
 	polyMapper->SetInputData(P);
 	polyMapper->SetLookupTable(lut);
-	//polyMapper->SetScalarRange(scalar->GetValueRange()[0], scalar->GetValueRange()[1]);
-	polyMapper->SetScalarRange(scalar->GetValueRange()[0], 0.025);
+	polyMapper->SetScalarRange(scalar->GetValueRange()[0], scalar->GetValueRange()[1]);
+	//polyMapper->SetScalarRange(scalar->GetValueRange()[0], 0.025);
 
 	auto polyActor = vtkSmartPointer<vtkActor>::New();
 	polyActor->SetMapper(polyMapper);
