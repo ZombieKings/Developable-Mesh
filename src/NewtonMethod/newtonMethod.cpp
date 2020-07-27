@@ -360,8 +360,6 @@ void Update(MatrixType& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& Vty
 					H.coeffRef(fv[(i + 1) % 3] * 3 + j, Vnum * 3 + Vtype(fv[(i + 1) % 3])) += v11[j];
 				}
 
-
-
 			if (Vtype(fv[(i + 2) % 3]) != -1)
 				for (int j = 0; j < 3; ++j)
 				{
