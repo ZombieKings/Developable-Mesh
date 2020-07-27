@@ -24,15 +24,21 @@ typedef const Eigen::Matrix3Xd MatrixTypeConst;
 
 void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix3Xi& F);
 
-void cal_Angle_Sum_Gradient(MatrixTypeConst& V, 
-	const Eigen::Matrix3Xi& F,
-	const Eigen::VectorXi& Vtype, 
-	VectorType& G);
-
+/**
+ * @brief Main processing function
+ * 
+ * @param V			geometrical information of mesh
+ * @param F			topological information of mesh
+ * @param Vtype		vertices type mask
+ * @param innerNum  number of internal vertex
+ * @param basicH	vecter of non change elements in H matrix
+ * @param L			uniform Laplacian operator matrix
+ */
 void Update(MatrixType& V,
 	const Eigen::Matrix3Xi& F, 
 	const Eigen::VectorXi& Vtype, 
 	int innerNum,
+	std::vector<Tri> basicH,
 	const SparseMatrixType& L);
 
 void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
