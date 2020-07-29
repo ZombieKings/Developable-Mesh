@@ -232,7 +232,7 @@ void adj_face(int Vnum, const Eigen::Matrix3Xi& F, std::vector<std::vector<Eigen
 	}
 }
 
-double cal_error(const VectorType& vecAngles, const VectorType& vecAreas, const Eigen::VectorXi& VType_, int flag)
+double cal_error(const VectorType& vecAngles, const VectorType& vecAreas, const Eigen::VectorXi& VType, int flag)
 {
 	//计算最大误差或平均误差
 	if (flag)

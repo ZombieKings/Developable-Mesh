@@ -55,4 +55,4 @@ int opt_solve(MatrixType V,
 
 void energy_test(MatrixType V, const Eigen::Matrix3Xi& F, const std::vector<std::vector<Eigen::Vector2i>>& adjF);
 
-double cal_error(const VectorType& vecAngles, const VectorType& vecAreas, const Eigen::VectorXi& VType_, int flag);
+double cal_error(const VectorType& vecAngles, const VectorType& vecAreas, const Eigen::VectorXi& VType, int flag);

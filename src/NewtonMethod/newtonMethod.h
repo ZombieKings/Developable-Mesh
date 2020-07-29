@@ -13,6 +13,7 @@
 #include "../tools/cal_normals.h"
 #include "../tools/cal_edge_length.h"
 #include "../tools/visualizer.h"
+#include "../tools/mesh_io.h"
 
 typedef double DataType;
 typedef Eigen::Triplet<DataType> Tri;

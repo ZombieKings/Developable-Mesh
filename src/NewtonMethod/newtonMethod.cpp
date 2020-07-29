@@ -40,7 +40,8 @@ int main(int argc, char** argv)
 			VType_(vit.idx()) = innerNum_++;
 	}
 	//-----------保存构造的网格-----------
-	mesh2matrix(mesh, matV_, matF_);
+	//mesh2matrix(mesh, matV_, matF_);
+	Zombie::mesh2matrix(mesh, matV_, matF_);
 	oriV_ = matV_;
 	vecOriV_ = Eigen::Map<VectorType>(oriV_.data(), 3 * oriV_.cols(), 1);
 	VectorType oriA;
