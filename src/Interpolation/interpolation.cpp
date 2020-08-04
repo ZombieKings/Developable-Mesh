@@ -1,364 +1,383 @@
 #include "interpolation.h"
 
-Dev_Inter::Dev_Inter()
-{
-	//Collect the index of internal vertices
-	for (const auto& vit : ori_mesh_.vertices())
-		if (!ori_mesh_.is_boundary(vit))
-			inter_p_.push_back(vit.idx());
-	cur_mesh_ = ori_mesh_;
+bool terminal_ = false;
+unsigned int counter_ = 0;
 
-	Cal_Error();
-	w1_ = w2_ = (ED_ + EI_ + EL_) * 50;
-}
+double w1_ = 5.0;
+double w2_ = 5.0;
+double w3_ = 10.0;
 
-int Dev_Inter::Deformation()
+double epD_ = 1.0;
+double epI_ = 1.0;
+double epL_ = 1.0;
+
+double deD_ = 1.0;
+double deI_ = 1.0;
+double deLu_ = 0.60;
+double deLl_ = 0.04;
+
+double ED_ = 0.0;
+double EI_ = 0.0;
+double EL_ = 0.0;
+
+double preED_ = 0.0;
+double preEI_ = 0.0;
+double preEL_ = 0.0;
+
+int innerNum_ = 0;
+Eigen::VectorXi VType_;
+Eigen::Matrix2Xi matE_;
+Eigen::Matrix3Xi matF_;
+MatrixType matV_;
+
+MatrixType oriV_;
+MatrixType preV_;
+VectorType oriLength_;
+
+std::vector<std::vector<int>> vvNeighbor_Vertices_;
+std::vector<std::vector<int>> vvNeighbor_Faces_;
+
+void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData))
 {
-	size_t it_count = 0;
-	while (EI_ >= epI_ || EL_ >= epL_ || ED_ >= epD_ || it_count <= 50)
+	if(EI_ >= epI_ || EL_ >= epL_ || ED_ >= epD_ || counter_ <= 50)
 	{
-		//Determine weights w1, w2
-		if (!Adjust_Weights())
-		{
-			std::cout << "Faild to adjust weights" << std::endl;
-			return 0;
-		}
-
-		//Construct linear system
-		if (!BuildMetrix())
-		{
-			std::cout << "Faild to build coefficient matrix" << std::endl;
-			return 0;
-		}
-
-		//Using Cholesky factorization to solve the linear system
-		if (!SolveProblem())
-		{
-			std::cout << "Faild to solve system" << std::endl;
-			return 0;
-		}
-
-		//Update the mesh with result scale S
-		if (!Update_Mesh())
-		{
-			std::cout << "Faild to update mesh" << std::endl;
-			return 0;
-		}
-
-		//Calculate three errors
-		preEI_ = EI_;
 		preED_ = ED_;
 		preEL_ = EL_;
-		Cal_Error();
+		preEI_ = EI_;
+		ED_ = 0.;
+		EL_ = 0.;
+		EI_ = 0.;
+		preV_ = matV_;
 
-		++it_count;
-	}
-	return 1;
-}
+		Update_Mesh(matV_, matE_, matF_, VType_, innerNum_, oriLength_);
 
-int Dev_Inter::BuildMetrix()
-{
-	coeff_A_.setZero();
-	right_b_.setZero();
-	tri_Coeff_.clear();
+		//Adjust_Weights();
 
-	//row of current processing
-	size_t cur_row = 0;
-	//For every internal vertices calculate K
-	for (; cur_row < inter_p_.size(); ++cur_row)
-	{
-		const Surface_mesh::Vertex v(inter_p_[cur_row]);
-		Cal_CurvatureCoeff(v, cur_row);
-	}
+		VectorType vA;
+		Zombie::cal_angles(matV_, matF_, vA);
+		//std::cout << "第" << counter_++ << "次迭代，最大误差为： " << cal_error(vA, VType_, 1) << "，平均误差为： " << cal_error(vA, VType_, 0) << std::endl;
+		std::cout << ED_ + EI_ + EL_ << std::endl;
 
-	//For every edges calculate length errors
-	for (const auto& eit : cur_mesh_.edges())
-	{
-		Cal_LengthCoeff(eit, cur_row++);
-	}
+		//--------------可视化更新---------------------
+		auto polydata = static_cast<vtkPolyData*>(clientData);
+		auto* iren = static_cast<vtkRenderWindowInteractor*>(caller);
 
-	//For every anuchor vertices calculate interpolation errors
-	for (size_t j = 0; j < anchor_idx_.size(); ++j)
-	{
-		Cal_InterCoeff(j, cur_row);
-		cur_row += 3;
-	}
-
-	//Build matrix
-	coeff_A_.setFromTriplets(tri_Coeff_.begin(), tri_Coeff_.end());
-	return 1;
-}
-
-int Dev_Inter::SolveProblem()
-{
-	//Solve the sparse linear system
-	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>> solver;
-	Eigen::VectorXf tempB = coeff_A_.transpose() * right_b_;
-	Eigen::SparseMatrix<double> tempA = (coeff_A_.transpose() * coeff_A_).eval();
-
-	solver.compute(tempA);
-	Eigen::SparseMatrix<double> tempU = solver.matrixU();
-	if (solver.info() != Eigen::Success)
-	{
-		std::cout << solver.info() << std::endl;
-		return 0;
-	}
-
-	scale_s_.setZero();
-	scale_s_ = solver.solve(tempB);
-	if (solver.info() != Eigen::Success)
-	{
-		std::cout << solver.info() << std::endl;
-		return 0;
-	}
-	for (size_t i = 0; i < scale_s_.size(); ++i)
-	{
-		if (!isfinite(scale_s_(i)))
+		auto scalar = vtkSmartPointer<vtkDoubleArray>::New();
+		scalar->SetNumberOfComponents(1);
+		scalar->SetNumberOfTuples(matV_.cols());
+		for (auto i = 0; i < vA.size(); ++i)
 		{
-			std::cout << "Wrong result!" << std::endl;
-			return 0;
+			if (VType_(i) != -1)
+				scalar->InsertTuple1(i, abs(2. * M_PI - vA(i)));
+			else
+				scalar->InsertTuple1(i, 0);
 		}
+
+		auto points = vtkSmartPointer<vtkPoints>::New();
+		for (int i = 0; i < matV_.cols(); ++i)
+		{
+			points->InsertNextPoint(matV_.col(i).data());
+		}
+		polydata->SetPoints(points);
+		polydata->GetPointData()->SetScalars(scalar);
+		polydata->Modified();;
+
+		iren->Render();
 	}
-	return 1;
 }
 
-surface_mesh::Surface_mesh Dev_Inter::CreatMesh(size_t mesh_size)
+int main(int argc, char** argv)
 {
-	Surface_mesh mesh;
-	for (int i = 0; i < mesh_size; ++i)
+	surface_mesh::Surface_mesh mesh;
+	if (!mesh.read(argv[1]))
 	{
-		for (int j = 0; j < mesh_size; ++j)
+		std::cout << "Load failed!" << std::endl;
+	}
+	//收集内部顶点下标
+	VType_.setConstant(mesh.n_vertices(), 0);
+	for (const auto& vit : mesh.vertices())
+	{
+		if (mesh.is_boundary(vit))
+			VType_(vit.idx()) = -1;
+		else
+			VType_(vit.idx()) = innerNum_++;
+	}
+
+	//-----------保存构造的网格-----------
+	Zombie::mesh2matrix(mesh, matV_, matE_, matF_);
+	oriV_ = matV_;
+
+	MatrixType matA;
+	VectorType oriA;
+	VectorType vAreas;
+	Zombie::cal_angles_and_areas(matV_, matF_, oriA, vAreas, matA);
+
+	//计算每条边的原始边长
+	oriLength_.setConstant(matE_.cols(), 0);
+	for (int i = 0; i < matE_.cols(); ++i)
+		oriLength_(i) = (oriV_.col(matE_(1, i)) - oriV_.col(matE_(0, i))).norm();
+
+	//计算初始ED
+	for (int i = 0; i < VType_.size(); ++i)
+		if (VType_(i) != -1)
 		{
-			mesh.add_vertex(Point(2 * i, 2 * j, 0));
+			double ed = (2. * M_PI - oriA(i)) / vAreas(i) / 3.;
+			ED_ += ed * ed;
 		}
-		if (i != (mesh_size - 1))
-		{
-			for (int j = 0; j < mesh_size - 1; ++j)
+	
+	w1_ = 50. * ED_;
+	w2_ = 50. * ED_;
+
+	deD_ = matV_.cols() * 1e-3;
+	deI_ = matV_.cols() * 1e-3;
+
+	epD_ = matV_.cols() * 1e-5;
+	epI_ = matV_.cols() * 1e-5;
+	epL_ = matV_.cols() * 1e-5;
+	//w1_ = 1.;
+	//w2_ = 1.;
+
+	std::cout << "初始最大误差： " << cal_error(oriA, VType_, 1) << std::endl;
+	std::cout << "初始平均误差： " << cal_error(oriA, VType_, 0) << std::endl;
+
+	////---------------测试-----------------
+	//Update_Mesh(matV_, matE_, matF_, VType_, innerNum_, oriLength_);
+
+	////---------------可视化---------------
+	//创建窗口
+	auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
+	renderWindow->SetSize(1600, 800);
+	auto renderer1 = vtkSmartPointer<vtkRenderer>::New();
+	Zombie::visualize_mesh(renderer1, matV_, matF_, oriA, VType_);
+	renderer1->SetViewport(0.0, 0.0, 0.5, 1.0);
+
+	//添加文本
+	auto textActor1 = vtkSmartPointer<vtkTextActor>::New();
+	textActor1->SetInput("Result Mesh");
+	textActor1->GetTextProperty()->SetFontSize(33);
+	textActor1->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	renderer1->AddActor2D(textActor1);
+
+	//视角设置
+	renderer1->ResetCamera();
+	renderWindow->AddRenderer(renderer1);
+
+	auto renderer2 = vtkSmartPointer<vtkRenderer>::New();
+	Zombie::visualize_mesh(renderer2, oriV_, matF_, oriA, VType_);
+	renderer2->SetViewport(0.5, 0.0, 1.0, 1.0);
+
+	//添加文本
+	auto textActor2 = vtkSmartPointer<vtkTextActor>::New();
+	textActor2->SetInput("Original Mesh");
+	textActor2->GetTextProperty()->SetFontSize(33);
+	textActor2->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+	renderer2->AddActor2D(textActor2);
+
+	//视角设置
+	renderer2->ResetCamera();
+	renderWindow->AddRenderer(renderer2);
+
+	auto interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+	interactor->SetRenderWindow(renderWindow);
+	auto style = vtkInteractorStyleTrackballCamera::New();
+	interactor->SetInteractorStyle(style);
+	interactor->Initialize();
+	interactor->CreateRepeatingTimer(1000);
+
+	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	timeCallback->SetCallback(CallbackFunction);
+	timeCallback->SetClientData(renderer1->GetActors()->GetLastActor()->GetMapper()->GetInput());
+
+	interactor->AddObserver(vtkCommand::TimerEvent, timeCallback);
+
+	//开始
+	renderWindow->Render();
+	interactor->Start();
+
+	return EXIT_SUCCESS;
+}
+
+double cal_error(const VectorType& vecAngles, const Eigen::VectorXi& VType, int flag)
+{
+	//计算最大误差或平均误差
+	double E = 0.0;
+	switch (flag)
+	{
+	case 0:
+	{
+		int cnt = 0;
+		for (size_t i = 0; i < VType.size(); ++i)
+			if (VType(i) != -1)
 			{
-				mesh.add_vertex(Point(2 * i + 1, 2 * j + 1, 0));
+				E += abs(2.0 * M_PI - vecAngles(i));
+				++cnt;
 			}
-		}
+		E /= double(cnt);
+		break;
 	}
-
-	for (int i = 0; i < mesh_size - 1; ++i)
+	case 1:
 	{
-		for (int j = 0; j < mesh_size - 1; ++j)
+		for (int i = 0; i < VType.size(); ++i)
+			if (VType(i) != -1)
+				E = std::max(E, abs(2.0 * M_PI - vecAngles(i)));
+		break;
+	}
+	}
+	return E;
+}
+
+void Update_Mesh(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& Vtype, int innerNum, const VectorType& oriLength)
+{
+	const int Vnum = V.cols();
+	const int Enum = E.cols();
+	const int Fnum = F.cols();
+
+	SparseMatrixType L;
+	L.resize(innerNum + Enum + Vnum * 3, Vnum * 3);
+	VectorType b;
+	b.setConstant(innerNum + Enum + Vnum * 3, 0);
+
+	//SparseMatrixType L;
+	//L.resize(innerNum + Enum + (Vnum - innerNum) * 3, Vnum * 3);
+	//VectorType b;
+	//b.setConstant(innerNum + Enum + (Vnum - innerNum) * 3, 0);
+
+	std::vector<Tri> triL;
+	triL.reserve(Vnum * innerNum * 3 + Enum * 6 + Vnum * 3);
+
+	//计算高斯能量
+	//计算当前曲面的高斯曲率
+	VectorType vG;
+	Cal_Guassion_Curvature(V, F, vG);
+	for (int i = 0; i < Vtype.size(); ++i)
+	{
+		if (Vtype(i) != -1)
 		{
-			mesh.add_triangle(Surface_mesh::Vertex(j + i * (2 * mesh_size - 1)), Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + 1), Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + mesh_size));
-			mesh.add_triangle(Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + 1), Surface_mesh::Vertex(j + (i + 1) * (2 * mesh_size - 1) + 1), Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + mesh_size));
-			mesh.add_triangle(Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + mesh_size), Surface_mesh::Vertex(j + (i + 1) * (2 * mesh_size - 1) + 1), Surface_mesh::Vertex(j + (i + 1) * (2 * mesh_size - 1)));
-			mesh.add_triangle(Surface_mesh::Vertex(j + i * (2 * mesh_size - 1)), Surface_mesh::Vertex(j + i * (2 * mesh_size - 1) + mesh_size), Surface_mesh::Vertex(j + (i + 1) * (2 * mesh_size - 1)));
+			b(Vtype(i)) = -w1_ * vG(i);
+			//收集ED
+			ED_ += vG(i) * vG(i);
 		}
 	}
 
-	return mesh;
-}
-
-int Dev_Inter::SetConditions(const float& D, const float& I, const float& L, const float& dD, const float& dI, const float& duL, const float& ddL)
-{
-	//Regulate coefficients
-	//terminal conditions
-	epD_ = D;
-	epI_ = I;
-	epL_ = L;
-
-	//weights related conditions
-	deD_ = dD;
-	deI_ = dI;
-	ddeL_ = ddL;
-	udeL_ = duL;
-	return 1;
-}
-
-int Dev_Inter::Cal_CurvatureCoeff(const Surface_mesh::Vertex& v, size_t num)
-{
-	//差分距离
-	float scale = 0.1f;
-
-	//计算原始曲率
-	right_b_(num) = -w1_ * Cal_Guassion_Curvature(v);
-
-	//初始化
-	for (size_t i = 0; i < 3; ++i)
+	//计算高斯曲率的数值梯度
+	//  (G(delta) - G(0)) / delta
+	const double diff_step = 1e-5;
+	MatrixType tmpV(V);
+	for (int i = 0; i < Vnum; ++i)
 	{
-		//计算前
-		cur_mesh_.position(v)[i] *= (1 - scale);
-		double tempB = Cal_Guassion_Curvature(v);
-		//计算后
-		cur_mesh_.position(v)[i] *= ((1 + scale) / (1 - scale));
-		double tempF = Cal_Guassion_Curvature(v);
-		Eigen::Triplet <float> tempTri(num, v.idx() * 3 + i, w1_ * (tempF - tempB) / (2 * scale));
-		tri_Coeff_.push_back(tempTri);
-		//std::cout << tempTri.value() << std::endl;
-		//复原
-		cur_mesh_.position(v)[i] /= (1 + scale);
-	}
-
-	for (auto nit : cur_mesh_.vertices(v))
-	{
-		for (size_t i = 0; i < 3; ++i)
+		for (int j = 0; j < 3; ++j)
 		{
-			//计算前
-			cur_mesh_.position(nit)[i] *= (1 - scale);
-			double tempB = Cal_Guassion_Curvature(v);
-			//计算后
-			cur_mesh_.position(nit)[i] *= ((1 + scale) / (1 - scale));
-			double tempF = Cal_Guassion_Curvature(v);
-			Eigen::Triplet <float> tempTri(num, nit.idx() * 3 + i, w1_ * (tempF - tempB) / (2 * scale));
-			//std::cout << tempTri.value() << std::endl;
-			tri_Coeff_.push_back(tempTri);
-			cur_mesh_.position(nit)[i] /= (1 + scale);
+			double vstep = diff_step * tmpV(j, i);
+			tmpV(j, i) += vstep;
+			VectorType vdG;
+			Cal_Guassion_Curvature(tmpV, F, vdG);
+			for (int k = 0; k < Vtype.size(); ++k)
+			{
+				if (Vtype(k) != -1)
+				{
+					triL.push_back(Tri(Vtype(k), i * 3 + j, w1_ * (vdG(k) - vG(k)) / diff_step));
+					//std::cout << vdG(k) << " " << vG(k) << " " << (vdG(k) - vG(k)) << std::endl;
+					//std::cout << w1_ * (vdG(k) - b(Vtype(k))) / diff_step << std::endl;
+				}
+			}
+			tmpV(j, i) -= vstep;
 		}
 	}
 
-	return 1;
-}
-
-float Dev_Inter::Cal_LengthCoeff(const Surface_mesh::Edge& e, size_t num)
-{
-	auto vertex_head = cur_mesh_.vertex(e, 0);
-	auto vertex_tail = cur_mesh_.vertex(e, 1);
-	auto position_h = cur_mesh_.position(vertex_head);
-	auto position_t = cur_mesh_.position(vertex_tail);
-
-	auto vec = position_t - position_h;
-
-	vec2mat(tri_Coeff_, w2_ * position_t / norm(vec), num, vertex_tail.idx());
-	vec2mat(tri_Coeff_, -w2_ * position_h / norm(vec), num, vertex_head.idx());
-
-	right_b_(num) = -w2_ * (cur_mesh_.edge_length(e) - ori_mesh_.edge_length(e));
-	return 1;
-}
-
-float Dev_Inter::Cal_InterCoeff(size_t idx, size_t num)
-{
-	Surface_mesh::Vertex temp_v(anchor_idx_[idx]);
-	surface_mesh::Vec3f temp_lambda = cur_mesh_.position(temp_v) - anchor_position_[idx];
-	for (size_t i = 0; i < 3; ++i)
+	//计算边长能量
+	//	l(e) - l0(e)
+	for (int i = 0; i < Enum; ++i)
 	{
-		//left hand
-		tri_Coeff_.push_back(Eigen::Triplet <float>(num + i, temp_v.idx() * 3 + i, cur_mesh_.position(temp_v)[i]));
-		//right hand
-		right_b_(num + i) = -temp_lambda[i];
-	}
-	return 1;
-}
-
-void Dev_Inter::Cal_Error()
-{
-	//---------calculate developable error------------
-	ED_ = 0;
-	float area = 0.0f;
-	for (size_t i = 0; i < inter_p_.size(); ++i)
-	{
-		float sum_theta = 0.0f; //summary internal angles
-		const Surface_mesh::Vertex p(inter_p_[i]);
-		auto q = cur_mesh_.vertices(p).begin();
-		auto nex_q = q;
-		++nex_q;
-		while (q != cur_mesh_.vertices(p).end())
+		auto& ev = E.col(i);
+		auto& v0 = V.col(ev[0]);
+		auto& v1 = V.col(ev[1]);
+		const double l = (v1 - v0).norm();
+		b(innerNum + i) = -w2_ * (l - oriLength(i));
+		for (int j = 0; j < 3; ++j)
 		{
-			//necessary vectors
-			auto vpq = (cur_mesh_.position(*q) - cur_mesh_.position(p));
-			auto vpqn = (cur_mesh_.position(*nex_q) - cur_mesh_.position(p));
-
-			//get the internal angle of ∠pvqn
-			float theta = acos(dot(vpq, vpqn) / (norm(vpq) * norm(vpqn)));
-			sum_theta += theta;
-			area += norm(cross(vpq, vpqn)) / 2;
-			q = nex_q;
-			++nex_q;
+			triL.push_back(Tri(innerNum + i, ev[0] * 3 + j, -w2_ * v0[j] / l));
+			triL.push_back(Tri(innerNum + i, ev[1] * 3 + j, w2_ * v1[j] / l));
 		}
-		area /= 3;
-		ED_ += ((2 * M_PI - sum_theta) / area) * ((2 * M_PI - sum_theta) / area);
+
+		//收集EL
+		EL_ = (l - oriLength(i)) * (l - oriLength(i));
 	}
 
-	//For every edges calculate length errors
-	EL_ = 0;
-	for (const auto& eit : cur_mesh_.edges())
+	//计算插值能量
+	//	V - V0
+	//int bound_cnt = 0;
+	//for (int i = 0; i < Vnum; ++i)
+	//{
+	//	if (Vtype(i) == -1)
+	//	{
+	//		for (int j = 0; j < 3; ++j)
+	//		{
+	//			triL.push_back(Tri(innerNum + Enum + bound_cnt * 3 + j, i * 3 + j, V(j, i)));
+	//			b(innerNum + Enum + bound_cnt * 3 + j) = oriV_(j, i) - V(j, i);
+	//		}
+	//		//收集EI
+	//		EI_ += (oriV_.col(i) - V.col(i)).squaredNorm();
+	//		++bound_cnt;
+	//	}
+	//}
+
+	for (int i = 0; i < Vnum; ++i)
 	{
-		float lo = ori_mesh_.edge_length(eit);
-		float lc = cur_mesh_.edge_length(eit);
-		EL_ += sqrt(lc - lo);
+		for (int j = 0; j < 3; ++j)
+		{
+			triL.push_back(Tri(innerNum + Enum + i * 3 + j, i * 3 + j, w3_ * V(j, i)));
+			b(innerNum + Enum + i * 3 + j) = w3_ * (oriV_(j, i) - V(j, i));
+		}
+		//收集EI
+		EI_ += (oriV_.col(i) - V.col(i)).squaredNorm();
 	}
 
-	//For every anuchor vertices calculate interpolation errors
-	EI_ = 0;
-	for (size_t i = 0; i < anchor_idx_.size(); ++i)
-	{
-		Surface_mesh::Vertex v(anchor_idx_[i]);
-		EI_ += sqrnorm(cur_mesh_.position(v) - anchor_position_[i]);
-	}
+	L.setFromTriplets(triL.begin(), triL.end());
+
+	//std::cout << L << std::endl;
+	//std::cout << b << std::endl;
+
+	//solve least square problam
+ 	Eigen::SimplicialLDLT<SparseMatrixType> solver;
+	solver.compute(L.transpose() * L);
+	assert(solver.info() == Eigen::Success && "solve fail");
+
+	VectorType S = solver.solve(L.transpose() * b);
+	std::cout << S << std::endl;
+	for (int i = 0; i < Vnum; ++i)
+		for (int j = 0; j < 3; ++j)
+			if(abs(S(i * 3 + j)) > 1e-7)
+				V(j, i) *= (1. + S(i * 3 + j));
+
+	//V = Eigen::Map<MatrixType>(tempV.data(), 3, Vnum);
 }
 
-int Dev_Inter::Adjust_Weights()
+void Adjust_Weights()
 {
 	if ((EI_ - preEI_) < deI_ && EI_ > epI_)
 	{
-		w1_ /= 2;
-		w2_ /= 2;
+		w1_ /= 2.;
+		w2_ /= 2.;
 	}
-	else if ((abs(EL_ - preEL_) / preEL_) > udeL_)
+	else if ((abs(EL_ - preEL_) / preEL_) > deLu_)
 	{
-		w2_ /= 2;
-		cur_mesh_ = pre_mesh_;
+		w2_ /= 2.;
+		matV_ = preV_;
 	}
-	else if ((abs(EL_ - preEL_) / preEL_) < udeL_ && EL_ > epL_)
+	else if ((abs(EL_ - preEL_) / preEL_) < deLl_ && EL_ > epL_)
 	{
-		w2_ *= 2;
+		w2_ *= 2.;
 	}
 	else if ((ED_ - preED_) < deD_ && ED_ > epD_)
 	{
-		w1_ *= 2;
+		w1_ *= 2.;
 	}
-	return 1;
 }
 
-int Dev_Inter::Update_Mesh()
+void Cal_Guassion_Curvature(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, VectorType& vecG)
 {
-	pre_mesh_ = cur_mesh_;
-	for (auto vit : cur_mesh_.vertices())
-	{
-		for (size_t i = 0; i < 3; ++i)
-		{
-			cur_mesh_.position(vit)[i] *= (1 + scale_s_(vit.idx() + i));
-		}
-	}
-	return 1;
-}
-
-float Dev_Inter::Cal_Guassion_Curvature(const Surface_mesh::Vertex& v)
-{
-	float sum_theta = 0.0f; //内角和
-	float area = 0.0f; //voronoi 面积
-
-	auto q = cur_mesh_.vertices(v).begin();
-	auto nex_q = q;
-	++nex_q;
-	while (q != cur_mesh_.vertices(v).end())
-	{
-		//要使用到的向量
-		auto vpq = (cur_mesh_.position(*q) - cur_mesh_.position(v));
-		auto vpqn = (cur_mesh_.position(*nex_q) - cur_mesh_.position(v));
-
-		//------计算要用到的数值-------
-		//计算内角
-		double temp = dot(vpq, vpqn) / (norm(vpq) * norm(vpqn));
-		if (temp > 1)	temp = 1;
-		if (temp < -1)	temp = -1;
-		double theta = acos(temp);
-
-		//叉乘的范数
-		float cro_pqqn, cro_pqqp;
-		cro_pqqn = norm(cross(vpq, vpqn));
-
-		//累加当前顶点
-		sum_theta += theta;
-		area += (cro_pqqn / 2);
-
-		//计算下一个相邻顶点
-		++q;
-		++nex_q;
-	}
-	return (2.0 * M_PI - sum_theta) / (area / 3.0);
+	VectorType vAreas;
+	Zombie::cal_angles_and_areas(V, F, vecG, vAreas);
+	vecG = (2. * M_PI - vecG.array());
+	vecG.array() /= vAreas.array() / 3;
 }

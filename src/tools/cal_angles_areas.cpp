@@ -84,6 +84,34 @@ void Zombie::cal_angles_and_areas(const Eigen::MatrixBase<DerivedV>& V,
 	}
 }
 
+template<typename DerivedV, typename DerivedF, typename DerivedvA, typename DerivedvAr>
+void Zombie::cal_angles_and_areas(const Eigen::MatrixBase<DerivedV>& V,
+	const Eigen::MatrixBase<DerivedF>& F,
+	Eigen::PlainObjectBase<DerivedvA>& vecAngles,
+	Eigen::PlainObjectBase<DerivedvAr>& vecAreas)
+{
+	const int DIM = F.rows();
+	assert(DIM == 3 && "Only for triangle mesh!");
+	vecAngles.setConstant(V.cols(), 0);
+	vecAreas.setConstant(V.cols(), 0);
+	for (int f = 0; f < F.cols(); ++f)
+	{
+		const auto& fv = F.col(f);
+		//Mix area
+		const auto area = (V.col(fv[1]) - V.col(fv[0])).cross(V.col(fv[2]) - V.col(fv[0])).norm() / 2.0;
+		for (int vi = 0; vi < DIM; ++vi)
+		{
+			const auto& p0 = V.col(fv[vi]);
+			const auto& p1 = V.col(fv[(vi + 1) % DIM]);
+			const auto& p2 = V.col(fv[(vi + 2) % DIM]);
+			const auto angle = std::acos(std::max(-1.0, std::min(1.0, (p1 - p0).normalized().dot((p2 - p0).normalized()))));
+			//Collect information per vertices
+			vecAreas(fv[vi]) += area;
+			vecAngles(fv(vi)) += angle;
+		}
+	}
+}
+
 template<typename DerivedL, typename DerivedmA>
 void Zombie::cal_angles_and_areas_with_edges(const Eigen::MatrixBase<DerivedL>& L,
 	Eigen::PlainObjectBase<DerivedmA>& matAngles)

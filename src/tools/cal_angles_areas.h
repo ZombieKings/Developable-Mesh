@@ -56,6 +56,27 @@ namespace Zombie
 		Eigen::PlainObjectBase<DerivedvAr>& vecAreas,
 		Eigen::PlainObjectBase<DerivedmA>& matAngles);
 
+	// Compute angles and areas for a triangle mesh 
+	// Inputs:
+	//   V  3 by #V list of vertices position
+	//
+	//   F  3 by #F list of mesh faces (must be triangles)
+	//
+	// Outputs:
+	//   vecAngles	#V list of internal angles for vertices.
+	//
+	//   vecAreas	#V list of mix areas for vertices.
+	//
+	//   matAngles  3 by #F list of internal angles for triangles,
+	//			 rows correspond to face vertices fv[0, 1, 2].
+	//Note:
+	//	Mix areas(i) = 1/3 * sum of 1-ring triangles' area over vertex(i).
+	template<typename DerivedV, typename DerivedF, typename DerivedvA, typename DerivedvAr>
+	void cal_angles_and_areas(const Eigen::MatrixBase<DerivedV>& V,
+		const Eigen::MatrixBase<DerivedF>& F,
+		Eigen::PlainObjectBase<DerivedvA>& vecAngles,
+		Eigen::PlainObjectBase<DerivedvAr>& vecAreas);
+
 	// Compute angles for a triangle mesh with edge lengths
 	//
 	// Inputs:

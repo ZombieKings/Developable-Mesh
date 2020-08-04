@@ -321,7 +321,7 @@ void update_points(MatrixType& V, const Eigen::Matrix3Xi& F, const Eigen::Vector
 	}
 	A.setFromTriplets(triA.begin(), triA.end());
 
-	//solve least norm problam
+	//solve least square problam
 	Eigen::SimplicialLDLT<SparseMatrixType> solver;
 	solver.compute(A.transpose() *A);
 	if (solver.info() != Eigen::Success)
