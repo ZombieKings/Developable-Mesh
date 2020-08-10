@@ -107,6 +107,9 @@ int main(int argc, char** argv)
 	Zombie::mesh2matrix(mesh, matV_, matE_, matF_);
 	oriV_ = matV_;
 
+	Zombie::get_neighbor_faces(mesh, vvNeighbor_Faces_); 
+	Zombie::get_neighbor_vertices(mesh, vvNeighbor_Vertices_);
+
 	MatrixType matA;
 	VectorType oriA;
 	VectorType vAreas;

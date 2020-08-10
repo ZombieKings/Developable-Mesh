@@ -14,6 +14,7 @@
 #include "../tools/cal_angles_areas.h"
 #include "../tools/visualizer.h"
 #include "../tools/mesh_io.h"
+#include "../tools/get_vertex_neighbor.h"
 
 //=============================================================================
 typedef double DataType;

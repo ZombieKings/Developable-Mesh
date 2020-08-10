@@ -37,12 +37,6 @@ namespace Zombie
 		Eigen::PlainObjectBase<DerivedE>& E,
 		Eigen::PlainObjectBase<DerivedF>& F);
 
-
-	//void mesh_neighbor(const surface_mesh::Surface_mesh& mesh,
-	//	Eigen::PlainObjectBase<DerivedV>& V,
-	//	Eigen::PlainObjectBase<DerivedE>& E,
-	//	Eigen::PlainObjectBase<DerivedF>& F);
-
 }
 #include "mesh_io.cpp"
 

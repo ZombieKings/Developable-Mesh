@@ -77,6 +77,21 @@ namespace Zombie
 		Eigen::PlainObjectBase<DerivedvA>& vecAngles,
 		Eigen::PlainObjectBase<DerivedvAr>& vecAreas);
 
+	// Compute angles and areas for a input list faces
+	// Inputs:
+	//   V  3 by #V list of vertices position
+	//
+	//   F  3 by #F list of mesh faces (must be triangles)
+	//
+	// Outputs:
+	//   matAngles  3 by #F list of internal angles for triangles,
+	//			 rows correspond to face vertices fv[0, 1, 2].
+	template<typename DerivedV, typename DerivedF, typename DerivedmA>
+	void cal_target_faces_angles(const Eigen::MatrixBase<DerivedV>& V,
+		const Eigen::MatrixBase<DerivedF>& F,
+		const std::vector<int>& vecF,
+		Eigen::PlainObjectBase<DerivedmA>& matAngles);
+
 	// Compute angles for a triangle mesh with edge lengths
 	//
 	// Inputs:
