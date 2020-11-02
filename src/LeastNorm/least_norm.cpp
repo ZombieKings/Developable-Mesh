@@ -1,4 +1,9 @@
+//------------------------------------------------------------------
+// Paper: A Least - norm Approach to Flattenable Mesh Surface Processing
+//------------------------------------------------------------------
 #include "least_norm.h"
+
+const int MAX_IT = 18;
 
 bool terminal_ = false;
 unsigned int counter_ = 0;
@@ -17,7 +22,7 @@ MatrixType oriV_;
 
 void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData))
 {
-	if (dqn_ >= epsilon_ && counter_ < 50)
+	if (dqn_ >= epsilon_ && counter_ < MAX_IT)
 	{
 		//----compute update vector-----
 		VectorType update_d;
@@ -102,6 +107,12 @@ int main(int argc, char** argv)
 	theta_ = cal_error(oriA, VType_, 1);
 	std::cout << "初始最大误差： " << theta_ << std::endl;
 	std::cout << "初始平均误差： " << cal_error(oriA, VType_, 1) << std::endl;
+
+	for (int i = 0; i < oriA.size(); ++i)
+		if (VType_(i) == -1)
+			oriA(i) = 0;
+		else
+			oriA(i) = abs(2. * M_PI - oriA(i));
 
 	//---------------可视化---------------
 	//创建窗口
@@ -276,7 +287,6 @@ void update_points(MatrixType& V, const Eigen::Matrix3Xi& F, const Eigen::Vector
 			sumAreas += vecAreas(i) / 3;
 	sumAreas /= innerNum;
 	vecAreas.array() /= 3.0 * sumAreas;
-
 
 	//Construct cotangent-weighted Laplace operator matrix.
 	SparseMatrixType A(6 * Vnum, 3 * Vnum);

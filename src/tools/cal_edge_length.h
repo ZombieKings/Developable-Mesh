@@ -21,6 +21,11 @@ namespace Zombie
 	void cal_edge_length_per_face(const Eigen::MatrixBase<DerivedV>& V,
 		const Eigen::MatrixBase<DerivedF>& F,
 		Eigen::PlainObjectBase<DerivedL>& L);
+
+	template <typename DerivedV, typename DerivedF, typename DerivedL>
+	void cal_squard_edge_lengths(const Eigen::MatrixBase<DerivedV>& V,
+		const Eigen::MatrixBase<DerivedF>& F,
+		Eigen::PlainObjectBase<DerivedL>& L);
 }
 
 #include "cal_edge_length.cpp"

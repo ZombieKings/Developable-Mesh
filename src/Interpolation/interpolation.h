@@ -28,13 +28,16 @@ typedef const Eigen::Matrix3Xd MatrixTypeConst;
 
 double cal_error(const VectorType& vecAngles, const Eigen::VectorXi& VType, int flag);
 
+void cal_target_faces_angles(MatrixTypeConst& V,
+	const Eigen::Matrix3Xi& F,
+	const std::vector<int>& vNFi,
+	MatrixType& matA);
+
 void Adjust_Weights();
 
 void Update_Mesh(MatrixType& V,
 	const Eigen::Matrix2Xi& E,
 	const Eigen::Matrix3Xi& F,
-	const Eigen::VectorXi& Vtype,
-	int innerNum, 
-	const VectorType& oriLength);
-
-void Cal_Guassion_Curvature(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, VectorType& vecG);
+	const Eigen::VectorXi& Vtype, 
+	const std::vector<std::vector<int>>& vvNeiF, 
+	int innerNum, const VectorType& oriLength);

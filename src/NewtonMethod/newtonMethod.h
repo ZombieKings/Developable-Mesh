@@ -23,8 +23,6 @@ typedef Eigen::Matrix3Xd MatrixType;
 typedef Eigen::SparseMatrix<DataType> SparseMatrixType;
 typedef const Eigen::Matrix3Xd MatrixTypeConst;
 
-void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix3Xi& F);
-
 /**
  * @brief Main processing function
  * 
@@ -43,3 +41,5 @@ void Update(MatrixType& V,
 	const SparseMatrixType& L);
 
 void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData));
+
+double cal_error(const VectorType& vecAngles, const Eigen::VectorXi& VType, int flag);

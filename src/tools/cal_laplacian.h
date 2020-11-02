@@ -33,9 +33,10 @@ namespace Zombie
 	// Outputs:
 	//   L  #V * RowsPerV by #V * RowsPerV sparse Laplace matrix
 	template <typename DerivedF, typename DerivedA, typename DerivedAr, typename T>
-	void cal_cot_laplace(const Eigen::MatrixBase<DerivedF>& F,
+	void cal_cot_laplace(int Vnum,
+		const Eigen::MatrixBase<DerivedF>& F,
 		const Eigen::MatrixBase<DerivedA>& matAngles,
-		const Eigen::PlainObjectBase<DerivedAr>& vecAreas,
+		const Eigen::MatrixBase<DerivedAr>& vecAreas,
 		const int RowsPerV,
 		Eigen::SparseMatrix<T>& L);
 

@@ -65,12 +65,6 @@ target_link_libraries(NewtonMethod optimized "$ENV{Surface_Mesh_DIR}/lib/surface
 target_link_libraries(NewtonMethod Eigen3::Eigen)
 target_link_libraries(NewtonMethod ${VTK_LIBRARIES})
 
-add_executable(LaplasianSmooth "src/LaplasianSmooth.cpp")
-target_link_libraries(LaplasianSmooth debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
-target_link_libraries(LaplasianSmooth optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
-target_link_libraries(LaplasianSmooth Eigen3::Eigen)
-target_link_libraries(LaplasianSmooth ${VTK_LIBRARIES})
-
 add_executable(TestObject "src/test.cpp")
 target_link_libraries(TestObject debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
 target_link_libraries(TestObject optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
@@ -79,11 +73,6 @@ target_link_libraries(TestObject ${VTK_LIBRARIES})
 target_link_libraries(TestObject debug "$ENV{Alglib_DIR}/lib/alglib_debug.lib" )
 target_link_libraries(TestObject optimized  "$ENV{Alglib_DIR}/lib/alglib_release.lib")
 target_link_libraries(TestObject "$ENV{MOSEK_DIR}/bin/mosek9_1.lib")
-
-add_executable(DifferMat "src/DifferentiationMatrix.cpp")
-target_link_libraries(DifferMat debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")
-target_link_libraries(DifferMat optimized "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_release.lib")
-target_link_libraries(DifferMat Eigen3::Eigen)
 
 add_executable(Temp "src/temp.cpp")
 target_link_libraries(Temp debug "$ENV{Surface_Mesh_DIR}/lib/surface_mesh_debug.lib")

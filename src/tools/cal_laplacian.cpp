@@ -20,36 +20,14 @@ void Zombie::cal_cot_laplace(const Eigen::MatrixBase<DerivedV>& V,
 	cal_angles_and_areas(V, F, vA, vAr, mA);
 
 	//Construct cotangent-weighted Laplace operator matrix.
-	L.resize(Vnum * RowsPerV, Vnum * RowsPerV);
-	std::vector<Eigen::Triplet<T>> triple;
-	triple.reserve(10 * Vnum);
-	for (Index i = 0; i < F.cols(); ++i)
-	{
-		const auto& fv = F.col(i);
-		const auto& ca = mA.col(i);
-		for (size_t vi = 0; vi < DIM; ++vi)
-		{
-			const int fv0 = fv[vi];
-			const int fv1 = fv[(vi + 1) % DIM];
-			const int fv2 = fv[(vi + 2) % DIM];
-			const T coeff0 = (1. / std::tan(ca[(vi + 1) % DIM]) + 1. / std::tan(ca[(vi + 2) % DIM])) / (2. * vAr(fv0));
-			const T coeff1 = -1. / std::tan(ca[(vi + 2) % DIM]) / (2. * vAr(fv0));
-			const T coeff2 = -1. / std::tan(ca[(vi + 1) % DIM]) / (2. * vAr(fv0));
-			for (int j = 0; j < RowsPerV; ++j)
-			{
-				triple.push_back(Eigen::Triplet<T>(fv0 * RowsPerV + j, fv0 * RowsPerV + j, coeff0));
-				triple.push_back(Eigen::Triplet<T>(fv0 * RowsPerV + j, fv1 * RowsPerV + j, coeff1));
-				triple.push_back(Eigen::Triplet<T>(fv0 * RowsPerV + j, fv2 * RowsPerV + j, coeff2));
-			}
-		}
-	}
-	L.setFromTriplets(triple.begin(), triple.end());
+	cal_cot_laplace(Vnum, F, mA, vAr, RowsPerV, L);
 }
 
 template <typename DerivedF, typename DerivedA, typename DerivedAr, typename T>
-void Zombie::cal_cot_laplace(const Eigen::MatrixBase<DerivedF>& F,
+void Zombie::cal_cot_laplace(int Vnum,
+	const Eigen::MatrixBase<DerivedF>& F,
 	const Eigen::MatrixBase<DerivedA>& matAngles,
-	const Eigen::PlainObjectBase<DerivedAr>& vecAreas,
+	const Eigen::MatrixBase<DerivedAr>& vecAreas,
 	const int RowsPerV,
 	Eigen::SparseMatrix<T>& L)
 {
@@ -57,10 +35,10 @@ void Zombie::cal_cot_laplace(const Eigen::MatrixBase<DerivedF>& F,
 	const int DIM = F.rows();
 	assert(DIM == 3 && "Only for triangle mesh!");
 	assert((RowsPerV == 1 || RowsPerV == DIM) && "One row per vertices or one row per dimension!");
-	const int Vnum = vecAreas.rows();
 
 	//Construct cotangent-weighted Laplace operator matrix.
 	L.resize(Vnum * RowsPerV, Vnum * RowsPerV);
+	L.reserve(10 * Vnum * RowsPerV);
 	std::vector<Eigen::Triplet<T>> triple;
 	triple.reserve(10 * Vnum);
 	for (Index i = 0; i < F.cols(); ++i)
@@ -72,9 +50,9 @@ void Zombie::cal_cot_laplace(const Eigen::MatrixBase<DerivedF>& F,
 			const int fv0 = fv[vi];
 			const int fv1 = fv[(vi + 1) % DIM];
 			const int fv2 = fv[(vi + 2) % DIM];
-			const T coeff0 = (1. / std::tan(ca[(vi + 1) % DIM]) + 1. / std::tan(ca[(vi + 2) % DIM])) / (2. * vecAreas(fv0));
-			const T coeff1 = -1. / std::tan(ca[(vi + 2) % DIM]) / (2. * vecAreas(fv0));
-			const T coeff2 = -1. / std::tan(ca[(vi + 1) % DIM]) / (2. * vecAreas(fv0));
+			const T coeff1 = -1. / std::tan(ca[(vi + 2) % DIM]) / 2. / vecAreas(fv[vi]);
+			const T coeff2 = -1. / std::tan(ca[(vi + 1) % DIM]) / 2. / vecAreas(fv[vi]);
+			const T coeff0 = -coeff1 - coeff2;
 			for (int j = 0; j < RowsPerV; ++j)
 			{
 				triple.push_back(Eigen::Triplet<T>(fv0 * RowsPerV + j, fv0 * RowsPerV + j, coeff0));
@@ -85,6 +63,7 @@ void Zombie::cal_cot_laplace(const Eigen::MatrixBase<DerivedF>& F,
 	}
 	L.setFromTriplets(triple.begin(), triple.end());
 }
+
 
 template <typename DerivedF, typename T>
 void Zombie::cal_uni_laplace(int Vnum,

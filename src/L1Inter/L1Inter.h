@@ -55,8 +55,8 @@ float w1 = 10.0f;
 float w2 = 1.0f;
 float w3 = 1.0f;
 
-float lambda = 0.0000015;
-float beta = 0.000003;
+float lambda = 0.000015;
+float beta = 0.00003;
 
 std::vector<int> interV;
 std::vector<int> boundV;

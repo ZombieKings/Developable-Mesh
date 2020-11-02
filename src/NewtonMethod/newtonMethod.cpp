@@ -7,8 +7,12 @@
 #define w2_ 1.0
 #define TAU 0.25
 
+const int MAX_IT = 150;
 bool flag_ = false;
 int it_conunter = 0;
+
+double theta_ = 0;
+double pretheta_ = 0;
 
 int innerNum_ = 0;
 Eigen::VectorXi VType_;
@@ -40,7 +44,6 @@ int main(int argc, char** argv)
 			VType_(vit.idx()) = innerNum_++;
 	}
 	//-----------保存构造的网格-----------
-	//mesh2matrix(mesh, matV_, matF_);
 	Zombie::mesh2matrix(mesh, matV_, matF_);
 	oriV_ = matV_;
 	vecOriV_ = Eigen::Map<VectorType>(oriV_.data(), 3 * oriV_.cols(), 1);
@@ -67,6 +70,15 @@ int main(int argc, char** argv)
 				basicH_.push_back(Tri(i * 3 + j, i * 3 + j, w2_));
 			else
 				basicH_.push_back(Tri(i * 3 + j, i * 3 + j, w2_ * 1000));
+
+	for (int i = 0; i < oriA.size(); ++i)
+		if (VType_(i) == -1)
+			oriA(i) = 0;
+		else
+			oriA(i) = abs(2. * M_PI - oriA(i));
+	theta_ = cal_error(oriA, VType_, 1);
+	std::cout << "初始最大误差： " << theta_ << std::endl;
+	std::cout << "初始平均误差： " << cal_error(oriA, VType_, 0) << std::endl;
 
 	//---------------可视化---------------
 	//创建窗口
@@ -107,7 +119,7 @@ int main(int argc, char** argv)
 	auto style = vtkInteractorStyleTrackballCamera::New();
 	interactor->SetInteractorStyle(style);
 	interactor->Initialize();
-	interactor->CreateRepeatingTimer(1000);
+	interactor->CreateRepeatingTimer(100);
 
 	auto timeCallback = vtkSmartPointer<vtkCallbackCommand>::New();
 	timeCallback->SetCallback(CallbackFunction);
@@ -122,9 +134,36 @@ int main(int argc, char** argv)
 	return EXIT_SUCCESS;
 }
 
+double cal_error(const VectorType& vecAngles, const Eigen::VectorXi& VType, int flag)
+{
+	//计算最大误差或平均误差
+	if (flag)
+	{
+		size_t idx = 0;
+		double maxE = 0;
+		for (int i = 0; i < VType_.size(); ++i)
+			if (VType_(i) != -1)
+				maxE = std::max(maxE, abs(2.0 * M_PI - vecAngles(i)));
+		return maxE;
+	}
+	else
+	{
+		double averange = 0;
+		int cnt = 0;
+		for (size_t i = 0; i < VType_.size(); ++i)
+			if (VType_(i) != -1)
+			{
+				averange += abs(2.0 * M_PI - vecAngles(i));
+				++cnt;
+			}
+		averange /= double(cnt);
+		return averange;
+	}
+}
+
 void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData))
 {
-	if (!flag_)
+	if (!flag_ && it_conunter < MAX_IT)
 	{
 		Update(matV_, matF_, VType_, innerNum_, basicH_, L_);
 
@@ -132,7 +171,10 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 
 		VectorType vecA;
 		Zombie::cal_angles(matV_, matF_, vecA);
-		double error = 0.0;
+
+		pretheta_ = theta_;
+		theta_ = cal_error(vecA, VType_, 1);
+		std::cout << "第" << it_conunter++ << "次迭代，最大误差为： " << theta_ << "，平均误差为： " << cal_error(vecA, VType_, 0) << std::endl;
 
 		//Update mesh
 		auto scalar = vtkSmartPointer<vtkDoubleArray>::New();
@@ -140,11 +182,7 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 		scalar->SetNumberOfTuples(matV_.cols());
 		for (auto i = 0; i < VType_.rows(); ++i)
 			if (VType_(i) != -1)
-			{
-				double tmp = abs(vecA(i) - 2.0 * M_PI);
-				error += tmp;
-				scalar->InsertTuple1(i, tmp);
-			}
+				scalar->InsertTuple1(i, abs(vecA(i) - 2.0 * M_PI));
 			else
 				scalar->InsertTuple1(i, 0);
 		auto polydata = static_cast<vtkPolyData*>(clientData);
@@ -158,11 +196,6 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 		polydata->Modified();;
 
 		iren->Render();
-		if (flag_)
-			std::cout << "优化结束,共进行";
-		else
-			std::cout << "第";
-		std::cout << it_conunter++ << "次迭代，误差为： " << error / innerNum_ << std::endl;
 	}
 }
 
@@ -263,26 +296,3 @@ void Update(MatrixType& V, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& Vty
 		flag_ = true;
 }
 
-void mesh2matrix(const surface_mesh::Surface_mesh& mesh, MatrixType& V, Eigen::Matrix3Xi& F)
-{
-	F.resize(3, mesh.n_faces());
-	V.resize(3, mesh.n_vertices());
-
-	Eigen::VectorXi flag;
-	flag.setConstant(mesh.n_vertices(), 0);
-	for (auto fit : mesh.faces())
-	{
-		int i = 0;
-		for (auto fvit : mesh.vertices(fit))
-		{
-			//save faces informations
-			F(i++, fit.idx()) = fvit.idx();
-			//save vertices informations
-			if (!flag(fvit.idx()))
-			{
-				V.col(fvit.idx()) = Eigen::Map<const Eigen::Vector3f>(mesh.position(surface_mesh::Surface_mesh::Vertex(fvit.idx())).data()).cast<DataType>();
-				flag(fvit.idx()) = 1;
-			}
-		}
-	}
-}

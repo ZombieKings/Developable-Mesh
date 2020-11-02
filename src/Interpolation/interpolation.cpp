@@ -1,11 +1,15 @@
+//------------------------------------------------------------------
+// Paper: Quasi - Developable Mesh Surface Interpolation via Mesh Deformation
+//------------------------------------------------------------------
+
 #include "interpolation.h"
 
 bool terminal_ = false;
 unsigned int counter_ = 0;
 
-double w1_ = 5.0;
-double w2_ = 5.0;
-double w3_ = 10.0;
+double w1_ = 100.0;
+double w2_ = 0.7;
+double w3_ = 0.3;
 
 double epD_ = 1.0;
 double epI_ = 1.0;
@@ -13,8 +17,8 @@ double epL_ = 1.0;
 
 double deD_ = 1.0;
 double deI_ = 1.0;
-double deLu_ = 0.60;
-double deLl_ = 0.04;
+double deLu_ = 0.90;
+double deLl_ = 0.06;
 
 double ED_ = 0.0;
 double EI_ = 0.0;
@@ -39,7 +43,7 @@ std::vector<std::vector<int>> vvNeighbor_Faces_;
 
 void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData))
 {
-	if(EI_ >= epI_ || EL_ >= epL_ || ED_ >= epD_ || counter_ <= 50)
+	if (EI_ >= epI_ || EL_ >= epL_ || ED_ >= epD_ || counter_ <= 50)
 	{
 		preED_ = ED_;
 		preEL_ = EL_;
@@ -49,14 +53,14 @@ void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId), 
 		EI_ = 0.;
 		preV_ = matV_;
 
-		Update_Mesh(matV_, matE_, matF_, VType_, innerNum_, oriLength_);
+		Update_Mesh(matV_, matE_, matF_, VType_, vvNeighbor_Faces_, innerNum_, oriLength_);
 
-		//Adjust_Weights();
+		Adjust_Weights();
 
 		VectorType vA;
 		Zombie::cal_angles(matV_, matF_, vA);
-		//std::cout << "第" << counter_++ << "次迭代，最大误差为： " << cal_error(vA, VType_, 1) << "，平均误差为： " << cal_error(vA, VType_, 0) << std::endl;
-		std::cout << ED_ + EI_ + EL_ << std::endl;
+		std::cout << "第" << counter_++ << "次迭代，最大误差为： " << cal_error(vA, VType_, 1) << "，平均误差为： " << cal_error(vA, VType_, 0) << std::endl;
+		//std::cout << ED_ + EI_ + EL_ << std::endl;
 
 		//--------------可视化更新---------------------
 		auto polydata = static_cast<vtkPolyData*>(clientData);
@@ -107,7 +111,7 @@ int main(int argc, char** argv)
 	Zombie::mesh2matrix(mesh, matV_, matE_, matF_);
 	oriV_ = matV_;
 
-	Zombie::get_neighbor_faces(mesh, vvNeighbor_Faces_); 
+	Zombie::get_neighbor_faces(mesh, vvNeighbor_Faces_);
 	Zombie::get_neighbor_vertices(mesh, vvNeighbor_Vertices_);
 
 	MatrixType matA;
@@ -127,7 +131,7 @@ int main(int argc, char** argv)
 			double ed = (2. * M_PI - oriA(i)) / vAreas(i) / 3.;
 			ED_ += ed * ed;
 		}
-	
+
 	w1_ = 50. * ED_;
 	w2_ = 50. * ED_;
 
@@ -142,6 +146,12 @@ int main(int argc, char** argv)
 
 	std::cout << "初始最大误差： " << cal_error(oriA, VType_, 1) << std::endl;
 	std::cout << "初始平均误差： " << cal_error(oriA, VType_, 0) << std::endl;
+
+	for (int i = 0; i < oriA.size(); ++i)
+		if (VType_(i) == -1)
+			oriA(i) = 0;
+		else
+			oriA(i) = abs(2. * M_PI - oriA(i));
 
 	////---------------测试-----------------
 	//Update_Mesh(matV_, matE_, matF_, VType_, innerNum_, oriLength_);
@@ -229,61 +239,104 @@ double cal_error(const VectorType& vecAngles, const Eigen::VectorXi& VType, int 
 	return E;
 }
 
-void Update_Mesh(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& Vtype, int innerNum, const VectorType& oriLength)
+void cal_target_faces_angles(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, const std::vector<int>& vNFi, MatrixType& matA)
+{
+	const int Fnum = vNFi.size();
+	matA.setConstant(3, Fnum, 0);
+	for (int f = 0; f < vNFi.size(); ++f)
+	{
+		const auto& fv = F.col(vNFi[f]);
+		for (int vi = 0; vi < 3; ++vi)
+		{
+			const auto& p0 = V.col(fv[vi]);
+			const auto& p1 = V.col(fv[(vi + 1) % 3]);
+			const auto& p2 = V.col(fv[(vi + 2) % 3]);
+			const auto angle = std::acos(std::max(-1.0, std::min(1.0, (p1 - p0).normalized().dot((p2 - p0).normalized()))));
+			matA(vi, f) = angle;
+		}
+	}
+}
+
+
+void Update_Mesh(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3Xi& F, const Eigen::VectorXi& Vtype, const std::vector<std::vector<int>>& vvNeiF, int innerNum, const VectorType& oriLength)
 {
 	const int Vnum = V.cols();
 	const int Enum = E.cols();
 	const int Fnum = F.cols();
 
-	SparseMatrixType L;
-	L.resize(innerNum + Enum + Vnum * 3, Vnum * 3);
-	VectorType b;
-	b.setConstant(innerNum + Enum + Vnum * 3, 0);
-
 	//SparseMatrixType L;
-	//L.resize(innerNum + Enum + (Vnum - innerNum) * 3, Vnum * 3);
+	//L.resize(innerNum + Enum + Vnum * 3, Vnum * 3);
 	//VectorType b;
-	//b.setConstant(innerNum + Enum + (Vnum - innerNum) * 3, 0);
+	//b.setConstant(innerNum + Enum + Vnum * 3, 0);
+
+	SparseMatrixType L;
+	L.resize(innerNum + Enum + (Vnum - innerNum) * 3, Vnum * 3);
+	VectorType b;
+	b.setConstant(innerNum + Enum + (Vnum - innerNum) * 3, 0);
 
 	std::vector<Tri> triL;
 	triL.reserve(Vnum * innerNum * 3 + Enum * 6 + Vnum * 3);
 
 	//计算高斯能量
-	//计算当前曲面的高斯曲率
-	VectorType vG;
-	Cal_Guassion_Curvature(V, F, vG);
-	for (int i = 0; i < Vtype.size(); ++i)
 	{
-		if (Vtype(i) != -1)
-		{
-			b(Vtype(i)) = -w1_ * vG(i);
-			//收集ED
-			ED_ += vG(i) * vG(i);
-		}
-	}
+		//计算当前曲面的高斯曲率
+		VectorType vG;
+		VectorType vAreas;
+		MatrixType matA;
+		Zombie::cal_angles_and_areas(V, F, vG, vAreas, matA);
+		vG = (2. * M_PI - vG.array());
+		vG.array() /= vAreas.array() / 3;
 
-	//计算高斯曲率的数值梯度
-	//  (G(delta) - G(0)) / delta
-	const double diff_step = 1e-5;
-	MatrixType tmpV(V);
-	for (int i = 0; i < Vnum; ++i)
-	{
-		for (int j = 0; j < 3; ++j)
+		for (int i = 0; i < Vtype.size(); ++i)
 		{
-			double vstep = diff_step * tmpV(j, i);
-			tmpV(j, i) += vstep;
-			VectorType vdG;
-			Cal_Guassion_Curvature(tmpV, F, vdG);
-			for (int k = 0; k < Vtype.size(); ++k)
+			if (Vtype(i) != -1)
 			{
-				if (Vtype(k) != -1)
-				{
-					triL.push_back(Tri(Vtype(k), i * 3 + j, w1_ * (vdG(k) - vG(k)) / diff_step));
-					//std::cout << vdG(k) << " " << vG(k) << " " << (vdG(k) - vG(k)) << std::endl;
-					//std::cout << w1_ * (vdG(k) - b(Vtype(k))) / diff_step << std::endl;
-				}
+				b(Vtype(i)) = -w1_ * vG(i);
+				//收集ED
+				ED_ += vG(i) * vG(i);
 			}
-			tmpV(j, i) -= vstep;
+		}
+
+		//计算高斯曲率的数值梯度
+		//  (G(delta) - G(0)) / delta
+		const double diff_step = 1e-4;
+		MatrixType tmpV(V);
+		for (int i = 0; i < Vnum; ++i)
+		{
+			const std::vector<int>& vNFi = vvNeiF[i];
+			for (int j = 0; j < 3; ++j)
+			{
+				double vstep = diff_step * tmpV(j, i);
+				tmpV(j, i) += vstep;
+
+				MatrixType tmpA;
+				cal_target_faces_angles(tmpV, F, vNFi, tmpA);
+				//VectorType vdG(vG);
+				for (int nf = 0; nf < vNFi.size(); ++nf)
+				{
+					auto& nfv = matF_.col(vNFi[nf]);
+					for (int nfvi = 0; nfvi < 3; ++nfvi)
+					{
+						if (Vtype(nfv[nfvi]) != -1)
+						{
+							double dG = (matA(nfvi, vNFi[nf]) - tmpA(nfvi, nf)) / vAreas(nfv[nfvi]) / 3.;
+							//std::cout << matA(nfvi, vvNeighbor_Faces_[i][nf]) << " " << tmpA(nfvi, nf) << " " << vAreas(nfv[nfvi]) << std::endl;
+							triL.push_back(Tri(Vtype(nfv[nfvi]), i * 3 + j, w1_ * dG / diff_step));
+						}
+					}
+				}
+
+				//for (int k = 0; k < Vtype.size(); ++k)
+				//{
+				//	if (Vtype(k) != -1)
+				//	{
+				//		triL.push_back(Tri(Vtype(k), i * 3 + j, w1_ * (vdG(k) - vG(k)) / diff_step));
+				//		//std::cout << vdG(k) << " " << vG(k) << " " << (vdG(k) - vG(k)) << std::endl;
+				//		//std::cout << w1_ * (vdG(k) - b(Vtype(k))) / diff_step << std::endl;
+				//	}
+				//}
+				tmpV(j, i) -= vstep;
+			}
 		}
 	}
 
@@ -308,51 +361,64 @@ void Update_Mesh(MatrixType& V, const Eigen::Matrix2Xi& E, const Eigen::Matrix3X
 
 	//计算插值能量
 	//	V - V0
-	//int bound_cnt = 0;
-	//for (int i = 0; i < Vnum; ++i)
-	//{
-	//	if (Vtype(i) == -1)
-	//	{
-	//		for (int j = 0; j < 3; ++j)
-	//		{
-	//			triL.push_back(Tri(innerNum + Enum + bound_cnt * 3 + j, i * 3 + j, V(j, i)));
-	//			b(innerNum + Enum + bound_cnt * 3 + j) = oriV_(j, i) - V(j, i);
-	//		}
-	//		//收集EI
-	//		EI_ += (oriV_.col(i) - V.col(i)).squaredNorm();
-	//		++bound_cnt;
-	//	}
-	//}
-
+	int bound_cnt = 0;
 	for (int i = 0; i < Vnum; ++i)
 	{
-		for (int j = 0; j < 3; ++j)
+		if (Vtype(i) == -1)
 		{
-			triL.push_back(Tri(innerNum + Enum + i * 3 + j, i * 3 + j, w3_ * V(j, i)));
-			b(innerNum + Enum + i * 3 + j) = w3_ * (oriV_(j, i) - V(j, i));
+			for (int j = 0; j < 3; ++j)
+			{
+				triL.push_back(Tri(innerNum + Enum + bound_cnt * 3 + j, i * 3 + j, w3_ * V(j, i)));
+				b(innerNum + Enum + bound_cnt * 3 + j) = w3_ * (oriV_(j, i) - V(j, i));
+			}
+			//收集EI
+			EI_ += (oriV_.col(i) - V.col(i)).squaredNorm();
+			++bound_cnt;
 		}
-		//收集EI
-		EI_ += (oriV_.col(i) - V.col(i)).squaredNorm();
 	}
+
+	//for (int i = 0; i < Vnum; ++i)
+	//{
+	//	for (int j = 0; j < 3; ++j)
+	//	{
+	//		triL.push_back(Tri(innerNum + Enum + i * 3 + j, i * 3 + j, V(j, i)));
+	//		b(innerNum + Enum + i * 3 + j) = (oriV_(j, i) - V(j, i));
+	//	}
+	//	//收集EI
+	//	EI_ += (oriV_.col(i) - V.col(i)).squaredNorm();
+	//}
 
 	L.setFromTriplets(triL.begin(), triL.end());
 
+	SparseMatrixType LT = L.transpose();
+	//Eigen::MatrixXd tss(LT * L);
+	//VectorType tssv = tss.bdcSvd().singularValues();
+	//std::cout << tssv << std::endl;
+	//int cntsd = 0;
+	//for (int i = 0; i < tssv.rows(); ++i)
+	//	if (tssv(i) == 0)
+	//		++cntsd;
+	//std::cout << cntsd << std::endl;
+	//std::cout << tss.determinant() << std::endl;
+	//std::cout << LT * L << std::endl;
 	//std::cout << L << std::endl;
 	//std::cout << b << std::endl;
 
-	//solve least square problam
- 	Eigen::SimplicialLDLT<SparseMatrixType> solver;
-	solver.compute(L.transpose() * L);
-	assert(solver.info() == Eigen::Success && "solve fail");
 
-	VectorType S = solver.solve(L.transpose() * b);
-	std::cout << S << std::endl;
+	//solve least square problam
+	Eigen::SimplicialLLT<SparseMatrixType> solver(LT * L);
+	if (solver.info() != Eigen::Success)
+	{
+		std::cout << "Scales Solve Failed !" << std::endl;
+	}
+
+	VectorType S = solver.solve(LT * b);
+	//std::cout << S << std::endl;
 	for (int i = 0; i < Vnum; ++i)
 		for (int j = 0; j < 3; ++j)
-			if(abs(S(i * 3 + j)) > 1e-7)
+			if (abs(S(i * 3 + j)) > 1e-7)
 				V(j, i) *= (1. + S(i * 3 + j));
 
-	//V = Eigen::Map<MatrixType>(tempV.data(), 3, Vnum);
 }
 
 void Adjust_Weights()
@@ -361,26 +427,22 @@ void Adjust_Weights()
 	{
 		w1_ /= 2.;
 		w2_ /= 2.;
+		std::cout << "EI high and reduce slow, increase w3." << std::endl;
 	}
 	else if ((abs(EL_ - preEL_) / preEL_) > deLu_)
 	{
 		w2_ /= 2.;
 		matV_ = preV_;
+		std::cout << "EL varies too quickly, reduce w2, restart." << std::endl;
 	}
 	else if ((abs(EL_ - preEL_) / preEL_) < deLl_ && EL_ > epL_)
 	{
 		w2_ *= 2.;
+		std::cout << "EL high and reduce slow, increase w2." << std::endl;
 	}
 	else if ((ED_ - preED_) < deD_ && ED_ > epD_)
 	{
 		w1_ *= 2.;
+		std::cout << "ED high and reduce slow, increase w1." << std::endl;
 	}
-}
-
-void Cal_Guassion_Curvature(MatrixTypeConst& V, const Eigen::Matrix3Xi& F, VectorType& vecG)
-{
-	VectorType vAreas;
-	Zombie::cal_angles_and_areas(V, F, vecG, vAreas);
-	vecG = (2. * M_PI - vecG.array());
-	vecG.array() /= vAreas.array() / 3;
 }
